@@ -678,7 +678,7 @@ export default function Home() {
     try {
       const { data: toolsData, error: toolsErr } = await supabase
         .from("tools")
-        .select("id,name,default_caps,tool_scenarios(id,category,metric,threshold,level,updated_at),updated_at");
+        .select("id,name,default_caps,tool_scenarios(id,category,metric,threshold,level),updated_at");
       const { data: systemsData, error: sysErr } = await supabase
         .from("systems")
         .select("id,name,class,updated_at,system_tools(tool_id,caps_selected),system_scenarios(scenario_id)");
