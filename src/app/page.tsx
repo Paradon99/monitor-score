@@ -626,7 +626,7 @@ export default function Home() {
   const [view, setView] = useState<"dashboard" | "scoring" | "config">("scoring");
   const [saveHint, setSaveHint] = useState<string>("");
   const [loadingRemote, setLoadingRemote] = useState<boolean>(false);
-  const [useLocalCache, setUseLocalCache] = useState<boolean>(false);
+  const [useLocalCache] = useState<boolean>(true);
   const [activeToolId, setActiveToolId] = useState<string | null>(null);
   const [newScenario, setNewScenario] = useState<{ metric: string; threshold: string; category: MonitorCategory; level: MonitorLevel }>({
     metric: "",
@@ -639,11 +639,14 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [conflictMsg, setConflictMsg] = useState<string>("");
   const [saving, setSaving] = useState<boolean>(false);
+  const [syncing, setSyncing] = useState<boolean>(false);
+  const [hasLocalData, setHasLocalData] = useState<boolean>(false);
 
   useEffect(() => {
-    if (!useLocalCache) return;
     try {
       const savedSys = localStorage.getItem(SYSTEM_STORAGE_KEY);
+      const savedTools = localStorage.getItem(TOOL_STORAGE_KEY);
+      if (savedSys || savedTools) setHasLocalData(true);
       if (savedSys) {
         const parsed = JSON.parse(savedSys);
         const sanitized = Array.isArray(parsed) ? parsed.map(sanitizeSystem) : initialSystems;
@@ -652,28 +655,25 @@ export default function Home() {
           setActiveSystemId(sanitized[0].id);
         }
       }
-      const savedTools = localStorage.getItem(TOOL_STORAGE_KEY);
       if (savedTools) setTools(sanitizeTools(JSON.parse(savedTools)));
     } catch (e) {
       console.warn("本地缓存读取失败，使用默认数据", e);
     }
-  }, [useLocalCache]);
+  }, []);
 
   useEffect(() => {
-    if (!useLocalCache) return;
     localStorage.setItem(SYSTEM_STORAGE_KEY, JSON.stringify(systems));
     setSaveHint("已自动保存评分数据");
     const timer = setTimeout(() => setSaveHint(""), 1200);
     return () => clearTimeout(timer);
-  }, [systems, useLocalCache]);
+  }, [systems]);
 
   useEffect(() => {
-    if (!useLocalCache) return;
     localStorage.setItem(TOOL_STORAGE_KEY, JSON.stringify(tools));
     setSaveHint("已自动保存工具配置");
     const timer = setTimeout(() => setSaveHint(""), 1200);
     return () => clearTimeout(timer);
-  }, [tools, useLocalCache]);
+  }, [tools]);
 
   const fetchRemote = useCallback(async () => {
     if (!supabase) return;
@@ -733,34 +733,20 @@ export default function Home() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchRemote();
-  }, [fetchRemote]);
+  const handleManualSync = async () => {
+    setSyncing(true);
+    await fetchRemote();
+    setSyncing(false);
+    setSaveHint("已从数据库同步");
+    setTimeout(() => setSaveHint(""), 1200);
+  };
 
   useEffect(() => {
     if (!activeToolId && tools.length) setActiveToolId(tools[0].id);
   }, [tools, activeToolId]);
 
   const refreshPending = useRef<NodeJS.Timeout | null>(null);
-  useEffect(() => {
-    if (!supabase) return;
-    const tables = ["systems", "system_tools", "system_scenarios", "tools", "tool_scenarios"];
-    const channel = supabase.channel("monitor-sync");
-    tables.forEach((table) => {
-      channel.on("postgres_changes", { event: "*", schema: "public", table }, () => {
-        if (refreshPending.current) return;
-        refreshPending.current = setTimeout(() => {
-          fetchRemote();
-          refreshPending.current = null;
-        }, 300);
-      });
-    });
-    channel.subscribe();
-    return () => {
-      if (refreshPending.current) clearTimeout(refreshPending.current);
-      if (supabase) supabase.removeChannel(channel);
-    };
-  }, [fetchRemote]);
+  // 关闭自动实时刷新，改为手动同步
 
   const activeSystem = useMemo(
     () => systems.find((s) => s.id === activeSystemId) || systems[0],
@@ -838,7 +824,20 @@ export default function Home() {
 
   const deleteTool = (id: string) => {
     setTools((prev) => prev.filter((t) => t.id !== id));
+    setSystems((prev) =>
+      prev.map((s) => ({
+        ...s,
+        selectedToolIds: s.selectedToolIds.filter((tid) => tid !== id),
+        toolCapabilities: Object.fromEntries(Object.entries(s.toolCapabilities || {}).filter(([tid]) => tid !== id)),
+      }))
+    );
     if (activeToolId === id) setActiveToolId(null);
+    // 同步删除到数据库（id 或 name 均可）
+    fetch("/api/delete-tool", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    }).catch((err) => console.warn("delete-tool error", err));
   };
 
   const updateTool = (id: string, patch: Partial<MonitorTool>) => {
@@ -888,7 +887,7 @@ export default function Home() {
     setActiveSystemId(newId);
   };
 
-  const deleteSystem = (id: string) => {
+  const deleteSystem = (id: string, name?: string) => {
     setSystems((prev) => {
       const filtered = prev.filter((s) => s.id !== id);
       if (filtered.length === 0) {
@@ -902,17 +901,14 @@ export default function Home() {
     });
 
     // 同步删除 Supabase
-    const uuidRe = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
-    if (uuidRe.test(id)) {
-      fetch("/api/delete-system", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
-      }).catch((err) => {
-        console.warn("delete-system error", err);
-        setConflictMsg("删除失败，请稍后重试");
-      });
-    }
+    fetch("/api/delete-system", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, name }),
+    }).catch((err) => {
+      console.warn("delete-system error", err);
+      setConflictMsg("删除失败，请稍后重试");
+    });
   };
 
   const handleSaveClick = async () => {
@@ -1041,10 +1037,10 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800">
-      {saveHint && (
+      {(saveHint || saving || syncing) && (
         <div className="pointer-events-none fixed inset-x-0 top-4 z-50 flex justify-center px-4">
           <div className="pointer-events-auto rounded-full bg-slate-900/90 px-4 py-2 text-xs font-medium text-white shadow-lg shadow-slate-900/20">
-            {saveHint}
+            {saving ? "保存中，请稍候..." : syncing ? "同步中..." : saveHint}
           </div>
         </div>
       )}
@@ -1077,14 +1073,15 @@ export default function Home() {
                   </button>
                 ))}
               </div>
-              <label className="flex items-center gap-2 text-xs text-slate-600">
-                <input
-                  type="checkbox"
-                  checked={useLocalCache}
-                  onChange={(e) => setUseLocalCache(e.target.checked)}
-                />
-                浏览器缓存模式
-              </label>
+              <button
+                onClick={handleManualSync}
+                disabled={syncing}
+                className={`rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium ${
+                  syncing ? "text-slate-400" : "text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                {syncing || loadingRemote ? "同步中..." : "同步数据"}
+              </button>
               <button
                 onClick={handleSaveClick}
                 disabled={saving}
@@ -1094,24 +1091,28 @@ export default function Home() {
               >
                 {saving ? "保存中..." : "☁️ 提交保存"}
               </button>
-            <button
-              onClick={handleExport}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
-            >
-              导出配置
-            </button>
-            <button
-              onClick={handleImportClick}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
-            >
-              导入配置
-            </button>
-            <input ref={fileInputRef} type="file" accept="application/json" onChange={handleImportFile} className="hidden" />
+              <button
+                onClick={handleExport}
+                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                导出配置
+              </button>
+              <button
+                onClick={handleImportClick}
+                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                导入配置
+              </button>
+              <input ref={fileInputRef} type="file" accept="application/json" onChange={handleImportFile} className="hidden" />
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-8">
+      {saving && (
+        <div className="fixed inset-0 z-40 bg-black/10 backdrop-blur-sm cursor-wait" aria-hidden />
+      )}
+
+      <main className={`mx-auto max-w-7xl px-4 py-8 ${saving ? "pointer-events-none select-none opacity-90" : ""}`}>
         {view === "config" && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -1477,7 +1478,7 @@ export default function Home() {
                         return;
                       }
                       const confirmDelete = window.confirm(`确认删除系统「${activeSystem.name}」？该操作不可撤销。`);
-                      if (confirmDelete) deleteSystem(activeSystem.id);
+                      if (confirmDelete) deleteSystem(activeSystem.id, activeSystem.name);
                     }}
                     className="rounded border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
                   >
