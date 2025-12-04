@@ -63,9 +63,11 @@ export async function POST(req: Request) {
       if (error) throw error;
     }
 
-    // 写入 system_scenarios（仅选中的）
-    if (checkedScenarioIds.length) {
-      const rows = checkedScenarioIds.map((sid) => ({
+    // 写入 system_scenarios（仅选中的），过滤非法 uuid
+    const uuidLike = (v: string) => /^[0-9a-fA-F-]{36}$/.test(v);
+    const safeScenarioIds = (checkedScenarioIds || []).filter((sid) => typeof sid === "string" && uuidLike(sid));
+    if (safeScenarioIds.length) {
+      const rows = safeScenarioIds.map((sid) => ({
         system_id: sys.id,
         scenario_id: sid,
         checked: true,

@@ -624,7 +624,7 @@ export default function Home() {
   const [view, setView] = useState<"dashboard" | "scoring" | "config">("scoring");
   const [saveHint, setSaveHint] = useState<string>("");
   const [loadingRemote, setLoadingRemote] = useState<boolean>(false);
-  const [useLocalCache, setUseLocalCache] = useState<boolean>(true);
+  const [useLocalCache, setUseLocalCache] = useState<boolean>(false);
   const [activeToolId, setActiveToolId] = useState<string | null>(null);
   const [newScenario, setNewScenario] = useState<{ metric: string; threshold: string; category: MonitorCategory; level: MonitorLevel }>({
     metric: "",
