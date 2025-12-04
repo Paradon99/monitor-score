@@ -1,0 +1,106 @@
+[
+  {
+    "id": "f5",
+    "name": "F5",
+    "defaultCapabilities": [
+      "网络监控"
+    ],
+    "scenarios": []
+  },
+  {
+    "id": "zabbix",
+    "name": "Zabbix",
+    "defaultCapabilities": [
+      "进程监控"
+    ],
+    "scenarios": []
+  },
+  {
+    "id": "prometheus",
+    "name": "Prometheus",
+    "defaultCapabilities": [
+      "进程监控"
+    ],
+    "scenarios": []
+  },
+  {
+    "id": "oracleem",
+    "name": "OracleEM",
+    "defaultCapabilities": [
+      "数据库监控"
+    ],
+    "scenarios": []
+  },
+  {
+    "id": "rms",
+    "name": "RMS",
+    "defaultCapabilities": [
+      "交易监控"
+    ],
+    "scenarios": []
+  },
+  {
+    "id": "bpc",
+    "name": "BPC",
+    "defaultCapabilities": [
+      "交易监控"
+    ],
+    "scenarios": []
+  },
+  {
+    "id": "云校验平台",
+    "name": "云校验平台",
+    "defaultCapabilities": [
+      "数据监控"
+    ],
+    "scenarios": []
+  },
+  {
+    "id": "自动化巡检平台",
+    "name": "自动化巡检平台",
+    "defaultCapabilities": [
+      "数据监控"
+    ],
+    "scenarios": []
+  },
+  {
+    "id": "听云",
+    "name": "听云",
+    "defaultCapabilities": [
+      "客户端监控"
+    ],
+    "scenarios": []
+  },
+  {
+    "id": "日志链路追踪系统",
+    "name": "日志链路追踪系统",
+    "defaultCapabilities": [
+      "链路监控"
+    ],
+    "scenarios": []
+  },
+  {
+    "id": "dbmp",
+    "name": "DBMP",
+    "defaultCapabilities": [
+      "数据库监控"
+    ],
+    "scenarios": []
+  },
+  {
+    "id": "运维大数据",
+    "name": "运维大数据",
+    "defaultCapabilities": [
+      "交易监控"
+    ],
+    "scenarios": []
+  },
+  {
+    "id": "npm",
+    "name": "NPM",
+    "defaultCapabilities": [
+      "网络监控"
+    ],
+    "scenarios": []
+  }
+]

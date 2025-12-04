@@ -1,0 +1,409 @@
+{
+  "zabbix": [
+    {
+      "id": "zabbix_0",
+      "category": "host",
+      "metric": "监控指标",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_1",
+      "category": "host",
+      "metric": "进程个数",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_4",
+      "category": "host",
+      "metric": "监控指标",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_5",
+      "category": "host",
+      "metric": "空闲使用率",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_6",
+      "category": "host",
+      "metric": "空闲使用率",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_7",
+      "category": "host",
+      "metric": "使用率",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_8",
+      "category": "host",
+      "metric": "使用率",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_9",
+      "category": "host",
+      "metric": "inode使用率",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_10",
+      "category": "host",
+      "metric": "inode使用率",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_11",
+      "category": "host",
+      "metric": "inode使用率",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_12",
+      "category": "host",
+      "metric": "使用率",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_13",
+      "category": "host",
+      "metric": "使用率",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_14",
+      "category": "host",
+      "metric": "使用率",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_15",
+      "category": "host",
+      "metric": "服务器",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_16",
+      "category": "host",
+      "metric": "sftpd进程数",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_17",
+      "category": "host",
+      "metric": "crond",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_18",
+      "category": "host",
+      "metric": "使用率",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_19",
+      "category": "host",
+      "metric": "使用率",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_20",
+      "category": "host",
+      "metric": "空闲量",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_21",
+      "category": "host",
+      "metric": "空闲量",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_22",
+      "category": "host",
+      "metric": "使用率",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_23",
+      "category": "host",
+      "metric": "使用率",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_24",
+      "category": "host",
+      "metric": "使用率",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_25",
+      "category": "host",
+      "metric": "使用率",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_26",
+      "category": "host",
+      "metric": "使用率",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_27",
+      "category": "host",
+      "metric": "使用率",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_28",
+      "category": "host",
+      "metric": "NAS盘",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_29",
+      "category": "host",
+      "metric": "未获取数据",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_30",
+      "category": "host",
+      "metric": "本机ping",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_31",
+      "category": "host",
+      "metric": "句柄使用率",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_32",
+      "category": "host",
+      "metric": "句柄使用率",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "zabbix_33",
+      "category": "host",
+      "metric": "时钟偏离",
+      "level": "gray",
+      "threshold": ""
+    }
+  ],
+  "prometheus": [
+    {
+      "id": "prometheus_0",
+      "category": "host",
+      "metric": "监控指标",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "prometheus_1",
+      "category": "host",
+      "metric": "使用占比",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "prometheus_2",
+      "category": "host",
+      "metric": "使用占比",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "prometheus_3",
+      "category": "host",
+      "metric": "内存占用",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "prometheus_4",
+      "category": "host",
+      "metric": "metaspace",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "prometheus_5",
+      "category": "host",
+      "metric": "连接池使用率",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "prometheus_6",
+      "category": "host",
+      "metric": "连接池使用率",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "prometheus_9",
+      "category": "host",
+      "metric": "监控指标",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "prometheus_10",
+      "category": "host",
+      "metric": "进程状态",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "prometheus_13",
+      "category": "host",
+      "metric": "监控指标",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "prometheus_14",
+      "category": "host",
+      "metric": "交易量",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "prometheus_15",
+      "category": "host",
+      "metric": "响应时间",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "prometheus_16",
+      "category": "host",
+      "metric": "QPS",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "prometheus_17",
+      "category": "host",
+      "metric": "响应率",
+      "level": "gray",
+      "threshold": ""
+    }
+  ],
+  "RMS": [
+    {
+      "id": "rms_0",
+      "category": "host",
+      "metric": "监控指标",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "rms_1",
+      "category": "host",
+      "metric": "交易量",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "rms_2",
+      "category": "host",
+      "metric": "响应时间",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "rms_3",
+      "category": "host",
+      "metric": "重要接口失败量",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "rms_4",
+      "category": "host",
+      "metric": "成功率",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "rms_5",
+      "category": "host",
+      "metric": "指定错误码数量",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "rms_6",
+      "category": "host",
+      "metric": "重要接口字段数值",
+      "level": "gray",
+      "threshold": ""
+    }
+  ],
+  "BPC": [
+    {
+      "id": "bpc_0",
+      "category": "host",
+      "metric": "监控指标",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "bpc_1",
+      "category": "host",
+      "metric": "交易量",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "bpc_2",
+      "category": "host",
+      "metric": "响应时间",
+      "level": "gray",
+      "threshold": ""
+    },
+    {
+      "id": "bpc_3",
+      "category": "host",
+      "metric": "响应率",
+      "level": "gray",
+      "threshold": ""
+    }
+  ]
+}

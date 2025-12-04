@@ -1,0 +1,286 @@
+{
+  "version": "v1",
+  "title": "监控配置评价体系",
+  "totalPoints": 100,
+  "notes": [
+    "来源：计分规则.pdf（宁波银行 | 总行金融科技部）。",
+    "1.3 在原文有“满分15分”表述，但分解项合计10分，保持总分100，暂以10分执行并保留 dataMonitor 部分扣分逻辑。",
+    "计算为前端/后端共享：同一规则 JSON 在前端计算、Serverless 再校验，评分结果绑定规则版本。"
+  ],
+  "dimensions": [
+    {
+      "id": "config_integrity",
+      "title": "配置完整性与标准化",
+      "points": 60,
+      "items": [
+        {
+          "id": "integrity_package",
+          "title": "监控配置完整性",
+          "basePoints": 45,
+          "type": "deduction_with_bonus",
+          "inputs": [
+            "packageCoverage: full|basic|partial|low",
+            "missingBaseCaps: [host|process|network|database|transaction]",
+            "serviceCoverage: full|basic|partial|low",
+            "isSelfBuilt: boolean"
+          ],
+          "rules": [
+            {
+              "when": "packageCoverage == 'full'",
+              "deduct": 0
+            },
+            {
+              "when": "packageCoverage == 'basic'",
+              "deduct": 4
+            },
+            {
+              "when": "packageCoverage == 'partial'",
+              "deduct": 7
+            },
+            {
+              "when": "packageCoverage == 'low'",
+              "deduct": 10
+            },
+            {
+              "when": "missingBaseCaps includes host",
+              "deduct": 15
+            },
+            {
+              "when": "missingBaseCaps includes process",
+              "deduct": 15
+            },
+            {
+              "when": "missingBaseCaps includes network",
+              "deduct": 15
+            },
+            {
+              "when": "missingBaseCaps includes database",
+              "deduct": 15
+            },
+            {
+              "when": "missingBaseCaps includes transaction",
+              "deduct": 15
+            },
+            {
+              "when": "serviceCoverage == 'full'",
+              "deduct": 0
+            },
+            {
+              "when": "serviceCoverage == 'basic'",
+              "deduct": 5
+            },
+            {
+              "when": "serviceCoverage == 'partial'",
+              "deduct": 10
+            },
+            {
+              "when": "serviceCoverage == 'low'",
+              "deduct": 15
+            },
+            {
+              "when": "isSelfBuilt == true",
+              "bonus": 5
+            }
+          ]
+        },
+        {
+          "id": "standardization",
+          "title": "监控项配置标准化",
+          "basePoints": 10,
+          "type": "deduction",
+          "inputs": [
+            "templateCoverage: percentage 0-1",
+            "coverageCoefficient: percentage 0-1 (监控覆盖系数, 依据已接入工具数)"
+          ],
+          "formula": "score = max(0, basePoints - deduction(templateCoverage)) * coverageCoefficient",
+          "deductionRules": [
+            {
+              "when": "templateCoverage >= 1",
+              "deduct": 0
+            },
+            {
+              "when": "templateCoverage >= 0.7",
+              "deduct": 2
+            },
+            {
+              "when": "templateCoverage >= 0.5",
+              "deduct": 5
+            },
+            {
+              "when": "templateCoverage >= 0.3",
+              "deduct": 7
+            },
+            {
+              "when": "templateCoverage < 0.3",
+              "deduct": 10
+            }
+          ]
+        },
+        {
+          "id": "documentation",
+          "title": "监控项文档化",
+          "basePoints": 0,
+          "type": "incremental_bonus",
+          "inputs": [
+            "documentedItemsCount: integer 0-5 (抽查五条命中数)"
+          ],
+          "rules": [
+            {
+              "when": "documentedItemsCount in [0..5]",
+              "bonusPerItem": 1,
+              "cap": 5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "fault_detection",
+      "title": "故障检测能力",
+      "points": 20,
+      "items": [
+        {
+          "id": "accuracy",
+          "title": "监控准确性",
+          "basePoints": 10,
+          "type": "range",
+          "inputs": [
+            "accuracyRate: percentage 0-1"
+          ],
+          "rules": [
+            {
+              "when": "accuracyRate >= 0.99",
+              "score": 10
+            },
+            {
+              "when": "accuracyRate >= 0.95",
+              "score": 7
+            },
+            {
+              "when": "accuracyRate >= 0.9",
+              "score": 3
+            },
+            {
+              "when": "accuracyRate < 0.9",
+              "score": 0
+            }
+          ]
+        },
+        {
+          "id": "discovery_rate",
+          "title": "故障监控发现率",
+          "basePoints": 10,
+          "type": "range",
+          "inputs": [
+            "discoveryRate: percentage 0-1"
+          ],
+          "rules": [
+            {
+              "when": "discoveryRate >= 0.99 or totalFaults == 0",
+              "score": 10
+            },
+            {
+              "when": "discoveryRate >= 0.95",
+              "score": 7
+            },
+            {
+              "when": "discoveryRate >= 0.85",
+              "score": 3
+            },
+            {
+              "when": "discoveryRate < 0.85",
+              "score": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "alerting",
+      "title": "告警与通知配置",
+      "points": 10,
+      "items": [
+        {
+          "id": "ops_leads",
+          "title": "科管运维负责人配置",
+          "basePoints": 5,
+          "type": "boolean_full",
+          "inputs": [
+            "opsLeadConfigured: boolean"
+          ],
+          "rules": [
+            {
+              "when": "opsLeadConfigured == true",
+              "score": 5
+            },
+            {
+              "when": "opsLeadConfigured == false",
+              "score": 0
+            }
+          ]
+        },
+        {
+          "id": "data_alert_recipients",
+          "title": "数据级监控告警人配置",
+          "basePoints": 5,
+          "type": "deduction",
+          "inputs": [
+            "dataMonitorMissingCount: integer (遗漏的监控项/责任人数量)",
+            "dataMonitorEnabled: boolean"
+          ],
+          "rules": [
+            {
+              "when": "dataMonitorEnabled == false",
+              "score": 0,
+              "note": "未接入数据级监控默认扣5分"
+            },
+            {
+              "when": "dataMonitorEnabled == true",
+              "deductPerItem": 1,
+              "capDeduct": 5
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ops_team",
+      "title": "运维团队能力",
+      "points": 10,
+      "items": [
+        {
+          "id": "response",
+          "title": "运维团队响应能力",
+          "basePoints": 5,
+          "type": "deduction",
+          "inputs": [
+            "lateResponseCount: integer (响应不及时次数)"
+          ],
+          "rules": [
+            {
+              "when": "lateResponseCount >= 0",
+              "deductPerItem": 2.5,
+              "capDeduct": 5
+            }
+          ]
+        },
+        {
+          "id": "rectification",
+          "title": "运维团队整改情况",
+          "basePoints": 5,
+          "type": "deduction",
+          "inputs": [
+            "overdueRectificationCount: integer (逾期整改项数)"
+          ],
+          "rules": [
+            {
+              "when": "overdueRectificationCount >= 0",
+              "deductPerItem": 1,
+              "capDeduct": 5
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

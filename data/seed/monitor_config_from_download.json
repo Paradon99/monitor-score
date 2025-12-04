@@ -1,0 +1,736 @@
+{
+  "systems": [
+    {
+      "id": 1,
+      "name": "基金代销系统",
+      "class": "A",
+      "formData": {
+        "avgDetectionTime": 5,
+        "maxDetectionTime": 5,
+        "accuracyRate": 5,
+        "discoveryRate": 10,
+        "earlyDetectionLow": 0,
+        "earlyDetectionMid": 0,
+        "earlyDetectionHigh": 0,
+        "mismatchedAlertsCount": 0,
+        "dataMonitorMissingCount": 0,
+        "lateResponseCount": 0,
+        "overdueRectificationCount": 0,
+        "packageCoverage": "full",
+        "personalizedCount": 0,
+        "documentedItemsCount": 5,
+        "isSelfBuilt": false,
+        "opsLeadConfigured": true,
+        "selectedTools": [
+          "zabbix",
+          "prometheus",
+          "f5",
+          "rms"
+        ],
+        "checkedScenarios": [],
+        "toolCaps": {
+          "zabbix": [
+            "process",
+            "host",
+            "network"
+          ],
+          "prometheus": [
+            "process",
+            "host",
+            "trans"
+          ],
+          "f5": [
+            "network"
+          ],
+          "rms": [
+            "trans",
+            "link"
+          ]
+        }
+      },
+      "scoreData": {
+        "total": 59,
+        "details": [
+          {
+            "name": "配置完整",
+            "score": 5,
+            "full": 40
+          },
+          {
+            "name": "故障检测",
+            "score": 29,
+            "full": 35
+          },
+          {
+            "name": "告警配置",
+            "score": 15,
+            "full": 15
+          },
+          {
+            "name": "团队能力",
+            "score": 10,
+            "full": 10
+          }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "name": "理财代销系统",
+      "class": "A",
+      "formData": {
+        "avgDetectionTime": 5,
+        "maxDetectionTime": 5,
+        "accuracyRate": 5,
+        "discoveryRate": 10,
+        "earlyDetectionLow": 0,
+        "earlyDetectionMid": 0,
+        "earlyDetectionHigh": 0,
+        "mismatchedAlertsCount": 0,
+        "dataMonitorMissingCount": 0,
+        "lateResponseCount": 0,
+        "overdueRectificationCount": 0,
+        "packageCoverage": "full",
+        "personalizedCount": 0,
+        "documentedItemsCount": 5,
+        "isSelfBuilt": false,
+        "opsLeadConfigured": true,
+        "selectedTools": [],
+        "checkedScenarios": [],
+        "toolCaps": {}
+      }
+    },
+    {
+      "id": 3,
+      "name": "财富交易支撑系统",
+      "class": "A",
+      "formData": {
+        "avgDetectionTime": 5,
+        "maxDetectionTime": 5,
+        "accuracyRate": 5,
+        "discoveryRate": 10,
+        "earlyDetectionLow": 0,
+        "earlyDetectionMid": 0,
+        "earlyDetectionHigh": 0,
+        "mismatchedAlertsCount": 0,
+        "dataMonitorMissingCount": 0,
+        "lateResponseCount": 0,
+        "overdueRectificationCount": 0,
+        "packageCoverage": "full",
+        "personalizedCount": 0,
+        "documentedItemsCount": 5,
+        "isSelfBuilt": false,
+        "opsLeadConfigured": true,
+        "selectedTools": [],
+        "checkedScenarios": [],
+        "toolCaps": {}
+      }
+    },
+    {
+      "id": 4,
+      "name": "资产配置系统",
+      "class": "B",
+      "formData": {
+        "avgDetectionTime": 5,
+        "maxDetectionTime": 5,
+        "accuracyRate": 5,
+        "discoveryRate": 10,
+        "earlyDetectionLow": 0,
+        "earlyDetectionMid": 0,
+        "earlyDetectionHigh": 0,
+        "mismatchedAlertsCount": 0,
+        "dataMonitorMissingCount": 0,
+        "lateResponseCount": 0,
+        "overdueRectificationCount": 0,
+        "packageCoverage": "full",
+        "personalizedCount": 0,
+        "documentedItemsCount": 5,
+        "isSelfBuilt": false,
+        "opsLeadConfigured": true,
+        "selectedTools": [],
+        "checkedScenarios": [],
+        "toolCaps": {}
+      }
+    },
+    {
+      "id": 5,
+      "name": "个人养老金系统",
+      "class": "A",
+      "formData": {
+        "avgDetectionTime": 5,
+        "maxDetectionTime": 5,
+        "accuracyRate": 5,
+        "discoveryRate": 10,
+        "earlyDetectionLow": 0,
+        "earlyDetectionMid": 0,
+        "earlyDetectionHigh": 0,
+        "mismatchedAlertsCount": 0,
+        "dataMonitorMissingCount": 0,
+        "lateResponseCount": 0,
+        "overdueRectificationCount": 0,
+        "packageCoverage": "full",
+        "personalizedCount": 0,
+        "documentedItemsCount": 5,
+        "isSelfBuilt": false,
+        "opsLeadConfigured": true,
+        "selectedTools": [],
+        "checkedScenarios": [],
+        "toolCaps": {}
+      }
+    },
+    {
+      "id": 6,
+      "name": "保险代销系统",
+      "class": "A",
+      "formData": {
+        "avgDetectionTime": 5,
+        "maxDetectionTime": 5,
+        "accuracyRate": 5,
+        "discoveryRate": 10,
+        "earlyDetectionLow": 0,
+        "earlyDetectionMid": 0,
+        "earlyDetectionHigh": 0,
+        "mismatchedAlertsCount": 0,
+        "dataMonitorMissingCount": 0,
+        "lateResponseCount": 0,
+        "overdueRectificationCount": 0,
+        "packageCoverage": "full",
+        "personalizedCount": 0,
+        "documentedItemsCount": 5,
+        "isSelfBuilt": false,
+        "opsLeadConfigured": true,
+        "selectedTools": [],
+        "checkedScenarios": [],
+        "toolCaps": {}
+      }
+    },
+    {
+      "id": 7,
+      "name": "商业养老金系统",
+      "class": "B",
+      "formData": {
+        "avgDetectionTime": 5,
+        "maxDetectionTime": 5,
+        "accuracyRate": 5,
+        "discoveryRate": 10,
+        "earlyDetectionLow": 0,
+        "earlyDetectionMid": 0,
+        "earlyDetectionHigh": 0,
+        "mismatchedAlertsCount": 0,
+        "dataMonitorMissingCount": 0,
+        "lateResponseCount": 0,
+        "overdueRectificationCount": 0,
+        "packageCoverage": "full",
+        "personalizedCount": 0,
+        "documentedItemsCount": 5,
+        "isSelfBuilt": false,
+        "opsLeadConfigured": true,
+        "selectedTools": [],
+        "checkedScenarios": [],
+        "toolCaps": {}
+      }
+    },
+    {
+      "id": 8,
+      "name": "信托及资管业务系统",
+      "class": "A",
+      "formData": {
+        "avgDetectionTime": 5,
+        "maxDetectionTime": 5,
+        "accuracyRate": 5,
+        "discoveryRate": 10,
+        "earlyDetectionLow": 0,
+        "earlyDetectionMid": 0,
+        "earlyDetectionHigh": 0,
+        "mismatchedAlertsCount": 0,
+        "dataMonitorMissingCount": 0,
+        "lateResponseCount": 0,
+        "overdueRectificationCount": 0,
+        "packageCoverage": "full",
+        "personalizedCount": 0,
+        "documentedItemsCount": 5,
+        "isSelfBuilt": false,
+        "opsLeadConfigured": true,
+        "selectedTools": [],
+        "checkedScenarios": [],
+        "toolCaps": {}
+      }
+    },
+    {
+      "id": 9,
+      "name": "贵金属销售管理系统",
+      "class": "B",
+      "formData": {
+        "avgDetectionTime": 5,
+        "maxDetectionTime": 5,
+        "accuracyRate": 5,
+        "discoveryRate": 10,
+        "earlyDetectionLow": 0,
+        "earlyDetectionMid": 0,
+        "earlyDetectionHigh": 0,
+        "mismatchedAlertsCount": 0,
+        "dataMonitorMissingCount": 0,
+        "lateResponseCount": 0,
+        "overdueRectificationCount": 0,
+        "packageCoverage": "full",
+        "personalizedCount": 0,
+        "documentedItemsCount": 5,
+        "isSelfBuilt": false,
+        "opsLeadConfigured": true,
+        "selectedTools": [],
+        "checkedScenarios": [],
+        "toolCaps": {}
+      }
+    },
+    {
+      "id": 10,
+      "name": "智能双录系统",
+      "class": "B",
+      "formData": {
+        "avgDetectionTime": 5,
+        "maxDetectionTime": 5,
+        "accuracyRate": 5,
+        "discoveryRate": 10,
+        "earlyDetectionLow": 0,
+        "earlyDetectionMid": 0,
+        "earlyDetectionHigh": 0,
+        "mismatchedAlertsCount": 0,
+        "dataMonitorMissingCount": 0,
+        "lateResponseCount": 0,
+        "overdueRectificationCount": 0,
+        "packageCoverage": "full",
+        "personalizedCount": 0,
+        "documentedItemsCount": 5,
+        "isSelfBuilt": false,
+        "opsLeadConfigured": true,
+        "selectedTools": [],
+        "checkedScenarios": [],
+        "toolCaps": {}
+      }
+    },
+    {
+      "id": 11,
+      "name": "个人代理业务整合系统",
+      "class": "B",
+      "formData": {
+        "avgDetectionTime": 5,
+        "maxDetectionTime": 5,
+        "accuracyRate": 5,
+        "discoveryRate": 10,
+        "earlyDetectionLow": 0,
+        "earlyDetectionMid": 0,
+        "earlyDetectionHigh": 0,
+        "mismatchedAlertsCount": 0,
+        "dataMonitorMissingCount": 0,
+        "lateResponseCount": 0,
+        "overdueRectificationCount": 0,
+        "packageCoverage": "full",
+        "personalizedCount": 0,
+        "documentedItemsCount": 5,
+        "isSelfBuilt": false,
+        "opsLeadConfigured": true,
+        "selectedTools": [],
+        "checkedScenarios": [],
+        "toolCaps": {}
+      }
+    }
+  ],
+  "config": [
+    {
+      "id": "zabbix",
+      "name": "Zabbix",
+      "capabilities": [
+        "process",
+        "host"
+      ],
+      "scenarios": [
+        {
+          "cat": "进程",
+          "metric": "应用进程个数",
+          "level": "orange",
+          "threshold": "0"
+        },
+        {
+          "cat": "主机",
+          "metric": "CPU空闲使用率",
+          "level": "orange",
+          "threshold": "<10%"
+        },
+        {
+          "cat": "主机",
+          "metric": "CPU空闲使用率",
+          "level": "yellow",
+          "threshold": "<20%"
+        },
+        {
+          "cat": "主机",
+          "metric": "SWAP使用率",
+          "level": "orange",
+          "threshold": ">60%"
+        },
+        {
+          "cat": "主机",
+          "metric": "SWAP使用率",
+          "level": "yellow",
+          "threshold": ">40%"
+        },
+        {
+          "cat": "主机",
+          "metric": "磁盘inode使用率",
+          "level": "orange",
+          "threshold": ">90%"
+        },
+        {
+          "cat": "主机",
+          "metric": "磁盘inode使用率",
+          "level": "yellow",
+          "threshold": ">85%"
+        },
+        {
+          "cat": "主机",
+          "metric": "磁盘inode使用率",
+          "level": "gray",
+          "threshold": ">75%"
+        },
+        {
+          "cat": "主机",
+          "metric": "磁盘使用率",
+          "level": "orange",
+          "threshold": ">90%"
+        },
+        {
+          "cat": "主机",
+          "metric": "磁盘使用率",
+          "level": "yellow",
+          "threshold": ">85%"
+        },
+        {
+          "cat": "主机",
+          "metric": "磁盘使用率",
+          "level": "gray",
+          "threshold": ">75%"
+        },
+        {
+          "cat": "主机",
+          "metric": "服务器状态",
+          "level": "orange",
+          "threshold": "重启"
+        },
+        {
+          "cat": "主机",
+          "metric": "sftpd进程数",
+          "level": "orange",
+          "threshold": "0"
+        },
+        {
+          "cat": "主机",
+          "metric": "crond状态",
+          "level": "orange",
+          "threshold": "未运行"
+        },
+        {
+          "cat": "主机",
+          "metric": "操作系统使用率",
+          "level": "yellow",
+          "threshold": ">99%"
+        },
+        {
+          "cat": "主机",
+          "metric": "操作系统使用率",
+          "level": "yellow",
+          "threshold": ">98%"
+        },
+        {
+          "cat": "主机",
+          "metric": "JVM堆内存空闲量",
+          "level": "orange",
+          "threshold": "<2MB"
+        },
+        {
+          "cat": "主机",
+          "metric": "JVM堆内存空闲量",
+          "level": "yellow",
+          "threshold": "<400KB"
+        },
+        {
+          "cat": "主机",
+          "metric": "线程池使用率",
+          "level": "orange",
+          "threshold": ">90%/75%"
+        },
+        {
+          "cat": "主机",
+          "metric": "线程池使用率",
+          "level": "yellow",
+          "threshold": ">75%/50%"
+        },
+        {
+          "cat": "主机",
+          "metric": "DB连接池使用率",
+          "level": "orange",
+          "threshold": ">90%/80%"
+        },
+        {
+          "cat": "主机",
+          "metric": "DB连接池使用率",
+          "level": "yellow",
+          "threshold": ">75%/60%"
+        },
+        {
+          "cat": "主机",
+          "metric": "用户进程数使用率",
+          "level": "orange",
+          "threshold": ">90%"
+        },
+        {
+          "cat": "主机",
+          "metric": "用户进程数使用率",
+          "level": "yellow",
+          "threshold": ">75%"
+        },
+        {
+          "cat": "主机",
+          "metric": "NAS挂载状态",
+          "level": "orange",
+          "threshold": "未挂载"
+        },
+        {
+          "cat": "主机",
+          "metric": "NAS数据获取",
+          "level": "orange",
+          "threshold": "30分钟无数据"
+        },
+        {
+          "cat": "主机",
+          "metric": "本机Ping",
+          "level": "orange",
+          "threshold": "不可达"
+        }
+      ]
+    },
+    {
+      "id": "prometheus",
+      "name": "Prometheus",
+      "capabilities": [
+        "process",
+        "host",
+        "trans"
+      ],
+      "scenarios": [
+        {
+          "cat": "主机",
+          "metric": "CPU使用占比",
+          "level": "orange",
+          "threshold": ">90%"
+        },
+        {
+          "cat": "主机",
+          "metric": "CPU使用占比",
+          "level": "yellow",
+          "threshold": ">80%"
+        },
+        {
+          "cat": "主机",
+          "metric": "JVM内存占用",
+          "level": "yellow",
+          "threshold": ">99%"
+        },
+        {
+          "cat": "主机",
+          "metric": "JVM Metaspace",
+          "level": "orange",
+          "threshold": ">80%"
+        },
+        {
+          "cat": "主机",
+          "metric": "DB连接池使用率",
+          "level": "orange",
+          "threshold": ">80%"
+        },
+        {
+          "cat": "主机",
+          "metric": "DB连接池使用率",
+          "level": "yellow",
+          "threshold": ">60%"
+        },
+        {
+          "cat": "进程",
+          "metric": "应用进程状态",
+          "level": "orange",
+          "threshold": "DOWN"
+        },
+        {
+          "cat": "交易",
+          "metric": "应用接口交易量",
+          "level": "yellow",
+          "threshold": "自定"
+        },
+        {
+          "cat": "交易",
+          "metric": "应用接口响应时间",
+          "level": "yellow",
+          "threshold": ">2000ms"
+        },
+        {
+          "cat": "交易",
+          "metric": "应用接口QPS",
+          "level": "yellow",
+          "threshold": "自定"
+        },
+        {
+          "cat": "交易",
+          "metric": "应用接口响应率",
+          "level": "yellow",
+          "threshold": "<98%"
+        }
+      ]
+    },
+    {
+      "id": "rms",
+      "name": "RMS",
+      "capabilities": [
+        "trans",
+        "link"
+      ],
+      "scenarios": [
+        {
+          "cat": "交易",
+          "metric": "交易量",
+          "level": "yellow",
+          "threshold": "自定"
+        },
+        {
+          "cat": "交易",
+          "metric": "响应时间",
+          "level": "yellow",
+          "threshold": ">2000ms"
+        },
+        {
+          "cat": "交易",
+          "metric": "重要接口失败量",
+          "level": "yellow",
+          "threshold": "自定"
+        },
+        {
+          "cat": "交易",
+          "metric": "成功率",
+          "level": "yellow",
+          "threshold": "<95%"
+        },
+        {
+          "cat": "交易",
+          "metric": "指定错误码数量",
+          "level": "yellow",
+          "threshold": "自定"
+        },
+        {
+          "cat": "交易",
+          "metric": "重要接口字段数值",
+          "level": "yellow",
+          "threshold": "自定"
+        }
+      ]
+    },
+    {
+      "id": "bpc",
+      "name": "BPC",
+      "capabilities": [
+        "trans"
+      ],
+      "scenarios": [
+        {
+          "cat": "交易",
+          "metric": "应用接口交易量",
+          "level": "yellow",
+          "threshold": "自定"
+        },
+        {
+          "cat": "交易",
+          "metric": "应用接口响应时间",
+          "level": "yellow",
+          "threshold": ">2000ms"
+        },
+        {
+          "cat": "交易",
+          "metric": "应用接口响应率",
+          "level": "yellow",
+          "threshold": "<98%"
+        }
+      ]
+    },
+    {
+      "id": "f5",
+      "name": "F5",
+      "capabilities": [
+        "network"
+      ],
+      "scenarios": []
+    },
+    {
+      "id": "oracleem",
+      "name": "OracleEM",
+      "capabilities": [
+        "db"
+      ],
+      "scenarios": []
+    },
+    {
+      "id": "cloudverify",
+      "name": "云校验平台",
+      "capabilities": [
+        "data"
+      ],
+      "scenarios": []
+    },
+    {
+      "id": "autopatrol",
+      "name": "自动化巡检平台",
+      "capabilities": [
+        "data"
+      ],
+      "scenarios": []
+    },
+    {
+      "id": "tingyun",
+      "name": "听云",
+      "capabilities": [
+        "client"
+      ],
+      "scenarios": []
+    },
+    {
+      "id": "logtrace",
+      "name": "日志链路追踪系统",
+      "capabilities": [
+        "link"
+      ],
+      "scenarios": []
+    },
+    {
+      "id": "dbmp",
+      "name": "DBMP",
+      "capabilities": [
+        "db"
+      ],
+      "scenarios": []
+    },
+    {
+      "id": "bigdata",
+      "name": "运维大数据",
+      "capabilities": [
+        "trans"
+      ],
+      "scenarios": []
+    },
+    {
+      "id": "npm",
+      "name": "NPM",
+      "capabilities": [
+        "network"
+      ],
+      "scenarios": []
+    }
+  ],
+  "apiKey": "",
+  "version": "4.2"
+}
