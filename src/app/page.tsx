@@ -7,6 +7,7 @@ import standardIndicators from "../../data/seed/standard_indicators.json";
 import toolsFromExcel from "../../data/seed/tools_from_excel.json";
 import systemsFromExcel from "../../data/seed/systems_from_excel.json";
 import configFromDownload from "../../data/seed/monitor_config_from_download.json";
+import { supabase } from "../../lib/supabaseClient";
 
 type MonitorLevel = "red" | "orange" | "yellow" | "gray";
 type MonitorCategory = "host" | "process" | "network" | "db" | "trans" | "link" | "data" | "client";
@@ -621,6 +622,14 @@ export default function Home() {
   const [tools, setTools] = useState<MonitorTool[]>(mergeStandardIndicators(DEFAULT_TOOLS));
   const [view, setView] = useState<"dashboard" | "scoring" | "config">("scoring");
   const [saveHint, setSaveHint] = useState<string>("");
+  const [loadingRemote, setLoadingRemote] = useState<boolean>(false);
+  const [activeToolId, setActiveToolId] = useState<string | null>(null);
+  const [newScenario, setNewScenario] = useState<{ metric: string; threshold: string; category: MonitorCategory; level: MonitorLevel }>({
+    metric: "",
+    threshold: "",
+    category: "host",
+    level: "gray",
+  });
   const leftColRef = useRef<HTMLDivElement | null>(null);
   const [rightPanelMaxHeight, setRightPanelMaxHeight] = useState<number | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -657,11 +666,63 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, [tools]);
 
+  useEffect(() => {
+    const fetchRemote = async () => {
+      if (!supabase) return;
+      setLoadingRemote(true);
+      try {
+        const { data: toolsData, error: toolsErr } = await supabase
+          .from("tools")
+          .select("id,name,default_caps,tool_scenarios(id,category,metric,threshold,level)");
+        const { data: systemsData, error: sysErr } = await supabase.from("systems").select("id,name,class");
+        if (toolsErr || sysErr) {
+          console.warn("Supabase fetch failed", toolsErr || sysErr);
+          return;
+        }
+        if (toolsData) {
+          const mappedTools: MonitorTool[] = toolsData.map((t: any) => ({
+            id: t.id,
+            name: t.name,
+            defaultCapabilities: normalizeCaps(t.default_caps || []),
+            scenarios: (t.tool_scenarios || []).map((s: any) => ({
+              id: s.id,
+              category: s.category as MonitorCategory,
+              metric: s.metric,
+              threshold: s.threshold,
+              level: (s.level as MonitorLevel) || "gray",
+            })),
+          }));
+          setTools(mappedTools);
+        }
+        if (systemsData && systemsData.length) {
+          const mappedSystems: SystemData[] = systemsData.map((s: any) => ({
+            ...createDefaultSystem(),
+            id: s.id,
+            name: s.name,
+            tier: s.class || "A",
+          }));
+          setSystems(mappedSystems);
+          setActiveSystemId(mappedSystems[0].id);
+        }
+      } catch (e) {
+        console.warn("Supabase fetch error", e);
+      } finally {
+        setLoadingRemote(false);
+      }
+    };
+    fetchRemote();
+  }, []);
+
+  useEffect(() => {
+    if (!activeToolId && tools.length) setActiveToolId(tools[0].id);
+  }, [tools, activeToolId]);
+
   const activeSystem = useMemo(
     () => systems.find((s) => s.id === activeSystemId) || systems[0],
     [systems, activeSystemId]
   );
   const scores = useMemo(() => calculateScore(activeSystem, tools), [activeSystem, tools]);
+  const activeTool = useMemo(() => tools.find((t) => t.id === activeToolId) || tools[0], [tools, activeToolId]);
 
   useLayoutEffect(() => {
     const measure = () => {
@@ -722,6 +783,60 @@ export default function Home() {
     );
   };
 
+  // 配置页：工具与指标编辑
+  const addTool = () => {
+    const newId = `tool_${Date.now()}`;
+    const newTool: MonitorTool = { id: newId, name: `新工具 ${tools.length + 1}`, defaultCapabilities: [], scenarios: [] };
+    setTools((prev) => [...prev, newTool]);
+    setActiveToolId(newId);
+  };
+
+  const deleteTool = (id: string) => {
+    setTools((prev) => prev.filter((t) => t.id !== id));
+    if (activeToolId === id) setActiveToolId(null);
+  };
+
+  const updateTool = (id: string, patch: Partial<MonitorTool>) => {
+    setTools((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  };
+
+  const toggleDefaultCapConfig = (id: string, cap: MonitorCategory) => {
+    const tool = tools.find((t) => t.id === id);
+    if (!tool) return;
+    const caps = tool.defaultCapabilities || [];
+    const next = caps.includes(cap) ? caps.filter((c) => c !== cap) : [...caps, cap];
+    updateTool(id, { defaultCapabilities: next });
+  };
+
+  const addScenario = () => {
+    if (!activeTool) return;
+    if (!newScenario.metric.trim()) return;
+    const scen: Scenario = {
+      id: `${activeTool.id}_${Date.now()}`,
+      category: newScenario.category,
+      metric: newScenario.metric.trim(),
+      threshold: newScenario.threshold.trim(),
+      level: newScenario.level,
+    };
+    updateTool(activeTool.id, { scenarios: [...(activeTool.scenarios || []), scen] });
+    setNewScenario({ ...newScenario, metric: "", threshold: "" });
+  };
+
+  const updateScenarioInline = (sid: string, patch: Partial<Scenario>) => {
+    if (!activeTool) return;
+    updateTool(
+      activeTool.id,
+      {
+        scenarios: (activeTool.scenarios || []).map((s) => (s.id === sid ? { ...s, ...patch } : s)),
+      }
+    );
+  };
+
+  const deleteScenarioInline = (sid: string) => {
+    if (!activeTool) return;
+    updateTool(activeTool.id, { scenarios: (activeTool.scenarios || []).filter((s) => s.id !== sid) });
+  };
+
   const addNewSystem = () => {
     const newId = `sys_${Date.now()}`;
     setSystems((prev) => [...prev, { ...(INITIAL_SYSTEMS[0] || createDefaultSystem()), id: newId, name: `新系统 ${newId.slice(-4)}` }]);
@@ -729,7 +844,20 @@ export default function Home() {
   };
 
   const handleSaveClick = () => {
-    setSaveHint("已保存到本地");
+    const payload = { system: activeSystem, tools, checkedScenarioIds: activeSystem.checkedScenarioIds };
+    fetch("/api/save-config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }).catch((e) => console.warn("save-config error", e));
+
+    fetch("/api/save-score", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ systemId: activeSystem.id, scores, ruleVersion: (ruleData as any).version, details: scores }),
+    }).catch((e) => console.warn("save-score error", e));
+
+    setSaveHint("已提交并保存");
     setTimeout(() => setSaveHint(""), 1200);
   };
 
@@ -830,9 +958,221 @@ export default function Home() {
 
       <main className="mx-auto max-w-7xl px-4 py-8">
         {view === "config" && (
-          <Card className="p-6">
-            <div className="text-sm text-slate-600">全局配置页面可扩展：工具库维护、规则版本切换、导入导出。</div>
-          </Card>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800">工具与指标配置</h2>
+                <p className="text-sm text-slate-500">维护工具基础信息、默认覆盖能力与标准指标。</p>
+              </div>
+              <div className="flex items-center gap-2 text-xs text-slate-500">
+                {loadingRemote ? <span className="text-blue-600">远端数据载入中...</span> : <span>来源：Supabase / 本地缓存</span>}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+              <Card className="lg:col-span-4 p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-slate-700">监控工具库 ({tools.length})</h3>
+                  <button
+                    onClick={addTool}
+                    className="rounded bg-blue-50 px-2 py-1 text-xs font-semibold text-blue-600 hover:bg-blue-100"
+                  >
+                    + 新增工具
+                  </button>
+                </div>
+                <div className="space-y-2 max-h-[70vh] overflow-y-auto pr-1">
+                  {tools.map((t) => (
+                    <div
+                      key={t.id}
+                      onClick={() => setActiveToolId(t.id)}
+                      className={`flex items-center justify-between rounded border p-3 text-sm transition ${
+                        activeToolId === t.id ? "border-blue-500 bg-blue-50/50" : "border-slate-200 bg-white hover:border-slate-300"
+                      }`}
+                    >
+                      <div>
+                        <div className="font-semibold text-slate-800">{t.name}</div>
+                        <div className="text-xs text-slate-500">
+                          能力 {t.defaultCapabilities.length} 项 · 指标 {t.scenarios?.length || 0} 条
+                        </div>
+                      </div>
+                      <button
+                        className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteTool(t.id);
+                        }}
+                      >
+                        删除
+                      </button>
+                    </div>
+                  ))}
+                  {tools.length === 0 && <div className="text-xs text-slate-500">暂无工具，请先添加。</div>}
+                </div>
+              </Card>
+
+              <Card className="lg:col-span-8 p-5">
+                {activeTool ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex-1">
+                        <label className="text-xs text-slate-500">工具名称</label>
+                        <input
+                          value={activeTool.name}
+                          onChange={(e) => updateTool(activeTool.id, { name: e.target.value })}
+                          className="mt-1 w-full rounded border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-800 focus:border-blue-500 focus:outline-none"
+                        />
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        ID: <span className="font-mono">{activeTool.id}</span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="mb-2 flex items-center justify-between">
+                        <div className="text-sm font-bold text-slate-700">默认覆盖能力</div>
+                        <span className="text-xs text-slate-500">影响勾选该工具后自动带出的能力</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 md:grid-cols-3">
+                        {Object.keys(CATEGORY_LABELS).map((c) => (
+                          <label key={c} className="flex items-center gap-2 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
+                            <input
+                              type="checkbox"
+                              checked={activeTool.defaultCapabilities.includes(c as MonitorCategory)}
+                              onChange={() => toggleDefaultCapConfig(activeTool.id, c as MonitorCategory)}
+                            />
+                            <span className="text-slate-700">{CATEGORY_LABELS[c as MonitorCategory]}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                      <div className="mb-3 flex items-center justify-between">
+                        <div className="text-sm font-bold text-slate-700">标准指标 ({activeTool.scenarios?.length || 0})</div>
+                        <div className="flex gap-2">
+                          <select
+                            value={newScenario.category}
+                            onChange={(e) => setNewScenario({ ...newScenario, category: e.target.value as MonitorCategory })}
+                            className="rounded border border-slate-200 bg-white px-2 py-1 text-xs"
+                          >
+                            {Object.keys(CATEGORY_LABELS).map((c) => (
+                              <option key={c} value={c}>
+                                {CATEGORY_LABELS[c as MonitorCategory]}
+                              </option>
+                            ))}
+                          </select>
+                          <select
+                            value={newScenario.level}
+                            onChange={(e) => setNewScenario({ ...newScenario, level: e.target.value as MonitorLevel })}
+                            className="rounded border border-slate-200 bg-white px-2 py-1 text-xs"
+                          >
+                            <option value="red">红</option>
+                            <option value="orange">橙</option>
+                            <option value="yellow">黄</option>
+                            <option value="gray">灰</option>
+                          </select>
+                          <input
+                            value={newScenario.metric}
+                            onChange={(e) => setNewScenario({ ...newScenario, metric: e.target.value })}
+                            placeholder="指标名称"
+                            className="w-40 rounded border border-slate-200 px-2 py-1 text-xs"
+                          />
+                          <input
+                            value={newScenario.threshold}
+                            onChange={(e) => setNewScenario({ ...newScenario, threshold: e.target.value })}
+                            placeholder="阈值/说明"
+                            className="w-36 rounded border border-slate-200 px-2 py-1 text-xs"
+                          />
+                          <button
+                            onClick={addScenario}
+                            className="rounded bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700"
+                          >
+                            + 添加指标
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+                        <table className="min-w-full text-sm">
+                          <thead className="bg-slate-50 text-left text-xs font-semibold text-slate-500">
+                            <tr>
+                              <th className="px-3 py-2">类别</th>
+                              <th className="px-3 py-2">指标</th>
+                              <th className="px-3 py-2">阈值/说明</th>
+                              <th className="px-3 py-2 text-center">级别</th>
+                              <th className="px-3 py-2 text-right">操作</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(activeTool.scenarios || []).map((s) => (
+                              <tr key={s.id} className="border-t border-slate-100">
+                                <td className="px-3 py-2">
+                                  <select
+                                    value={s.category}
+                                    onChange={(e) => updateScenarioInline(s.id, { category: e.target.value as MonitorCategory })}
+                                    className="w-full rounded border border-slate-200 bg-white px-2 py-1 text-xs"
+                                  >
+                                    {Object.keys(CATEGORY_LABELS).map((c) => (
+                                      <option key={c} value={c}>
+                                        {CATEGORY_LABELS[c as MonitorCategory]}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </td>
+                                <td className="px-3 py-2">
+                                  <input
+                                    value={s.metric}
+                                    onChange={(e) => updateScenarioInline(s.id, { metric: e.target.value })}
+                                    className="w-full rounded border border-slate-200 px-2 py-1 text-xs"
+                                  />
+                                </td>
+                                <td className="px-3 py-2">
+                                  <input
+                                    value={s.threshold}
+                                    onChange={(e) => updateScenarioInline(s.id, { threshold: e.target.value })}
+                                    className="w-full rounded border border-slate-200 px-2 py-1 text-xs"
+                                  />
+                                </td>
+                                <td className="px-3 py-2 text-center">
+                                  <select
+                                    value={s.level}
+                                    onChange={(e) => updateScenarioInline(s.id, { level: e.target.value as MonitorLevel })}
+                                    className="rounded border border-slate-200 bg-white px-2 py-1 text-xs"
+                                  >
+                                    <option value="red">红</option>
+                                    <option value="orange">橙</option>
+                                    <option value="yellow">黄</option>
+                                    <option value="gray">灰</option>
+                                  </select>
+                                </td>
+                                <td className="px-3 py-2 text-right">
+                                  <button
+                                    onClick={() => deleteScenarioInline(s.id)}
+                                    className="rounded px-2 py-1 text-xs text-red-500 hover:bg-red-50"
+                                  >
+                                    删除
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                            {(activeTool.scenarios || []).length === 0 && (
+                              <tr>
+                                <td colSpan={5} className="px-3 py-6 text-center text-xs text-slate-500">
+                                  暂无指标，请使用上方表单添加。
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-sm text-slate-500">请选择左侧工具或创建新工具。</div>
+                )}
+              </Card>
+            </div>
+          </div>
         )}
 
         {view === "dashboard" && (
