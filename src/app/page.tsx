@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useLayoutEffect } from "react";
+import { useEffect, useMemo, useRef, useState, useLayoutEffect, useCallback } from "react";
 import ruleData from "../../rules/score_rules_v1.json";
 import seedConfig from "../../data/seed/monitor_config.seed.json";
 import standardIndicators from "../../data/seed/standard_indicators.json";
@@ -31,6 +31,7 @@ interface SystemData {
   id: string;
   name: string;
   tier: "A" | "B" | "C";
+  updatedAt?: string;
   isSelfBuilt: boolean;
   serverCoverage: "full" | "basic" | "partial" | "low";
   selectedToolIds: string[];
@@ -623,6 +624,7 @@ export default function Home() {
   const [view, setView] = useState<"dashboard" | "scoring" | "config">("scoring");
   const [saveHint, setSaveHint] = useState<string>("");
   const [loadingRemote, setLoadingRemote] = useState<boolean>(false);
+  const [useLocalCache, setUseLocalCache] = useState<boolean>(true);
   const [activeToolId, setActiveToolId] = useState<string | null>(null);
   const [newScenario, setNewScenario] = useState<{ metric: string; threshold: string; category: MonitorCategory; level: MonitorLevel }>({
     metric: "",
@@ -633,8 +635,10 @@ export default function Home() {
   const leftColRef = useRef<HTMLDivElement | null>(null);
   const [rightPanelMaxHeight, setRightPanelMaxHeight] = useState<number | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [conflictMsg, setConflictMsg] = useState<string>("");
 
   useEffect(() => {
+    if (!useLocalCache) return;
     try {
       const savedSys = localStorage.getItem(SYSTEM_STORAGE_KEY);
       if (savedSys) {
@@ -650,85 +654,110 @@ export default function Home() {
     } catch (e) {
       console.warn("本地缓存读取失败，使用默认数据", e);
     }
-  }, []);
+  }, [useLocalCache]);
 
   useEffect(() => {
+    if (!useLocalCache) return;
     localStorage.setItem(SYSTEM_STORAGE_KEY, JSON.stringify(systems));
     setSaveHint("已自动保存评分数据");
     const timer = setTimeout(() => setSaveHint(""), 1200);
     return () => clearTimeout(timer);
-  }, [systems]);
+  }, [systems, useLocalCache]);
 
   useEffect(() => {
+    if (!useLocalCache) return;
     localStorage.setItem(TOOL_STORAGE_KEY, JSON.stringify(tools));
     setSaveHint("已自动保存工具配置");
     const timer = setTimeout(() => setSaveHint(""), 1200);
     return () => clearTimeout(timer);
-  }, [tools]);
+  }, [tools, useLocalCache]);
+
+  const fetchRemote = useCallback(async () => {
+    if (!supabase) return;
+    setLoadingRemote(true);
+    try {
+      const { data: toolsData, error: toolsErr } = await supabase
+        .from("tools")
+        .select("id,name,default_caps,tool_scenarios(id,category,metric,threshold,level,updated_at),updated_at");
+      const { data: systemsData, error: sysErr } = await supabase
+        .from("systems")
+        .select("id,name,class,updated_at,system_tools(tool_id,caps_selected),system_scenarios(scenario_id)");
+      if (toolsErr || sysErr) {
+        console.warn("Supabase fetch failed", toolsErr || sysErr);
+        return;
+      }
+      if (toolsData) {
+        const mappedTools: MonitorTool[] = toolsData.map((t: any) => ({
+          id: t.id,
+          name: t.name,
+          defaultCapabilities: normalizeCaps(t.default_caps || []),
+          scenarios: (t.tool_scenarios || []).map((s: any) => ({
+            id: s.id,
+            category: s.category as MonitorCategory,
+            metric: s.metric,
+            threshold: s.threshold,
+            level: (s.level as MonitorLevel) || "gray",
+          })),
+        }));
+        setTools(mappedTools);
+      }
+      if (systemsData && systemsData.length) {
+        const mappedSystems: SystemData[] = systemsData.map((s: any) => {
+          const selectedToolIds = (s.system_tools || []).map((st: any) => st.tool_id);
+          const toolCapabilities: Record<string, MonitorCategory[]> = {};
+          (s.system_tools || []).forEach((st: any) => {
+            toolCapabilities[st.tool_id] = normalizeCaps(st.caps_selected || []);
+          });
+          const checkedScenarioIds = (s.system_scenarios || []).map((sc: any) => sc.scenario_id);
+          return {
+            ...createDefaultSystem(),
+            id: s.id,
+            name: s.name,
+            tier: s.class || "A",
+            updatedAt: s.updated_at || undefined,
+            selectedToolIds,
+            toolCapabilities,
+            checkedScenarioIds,
+          };
+        });
+        setSystems(mappedSystems);
+        setActiveSystemId((prev) => mappedSystems.find((m) => m.id === prev)?.id || mappedSystems[0].id);
+      }
+    } catch (e) {
+      console.warn("Supabase fetch error", e);
+    } finally {
+      setLoadingRemote(false);
+    }
+  }, []);
 
   useEffect(() => {
-    const fetchRemote = async () => {
-      if (!supabase) return;
-      setLoadingRemote(true);
-      try {
-        const { data: toolsData, error: toolsErr } = await supabase
-          .from("tools")
-          .select("id,name,default_caps,tool_scenarios(id,category,metric,threshold,level)");
-        const { data: systemsData, error: sysErr } = await supabase
-          .from("systems")
-          .select("id,name,class,system_tools(tool_id,capabilities),system_scenarios(scenario_id)");
-        if (toolsErr || sysErr) {
-          console.warn("Supabase fetch failed", toolsErr || sysErr);
-          return;
-        }
-        if (toolsData) {
-          const mappedTools: MonitorTool[] = toolsData.map((t: any) => ({
-            id: t.id,
-            name: t.name,
-            defaultCapabilities: normalizeCaps(t.default_caps || []),
-            scenarios: (t.tool_scenarios || []).map((s: any) => ({
-              id: s.id,
-              category: s.category as MonitorCategory,
-              metric: s.metric,
-              threshold: s.threshold,
-              level: (s.level as MonitorLevel) || "gray",
-            })),
-          }));
-          setTools(mappedTools);
-        }
-        if (systemsData && systemsData.length) {
-          const mappedSystems: SystemData[] = systemsData.map((s: any) => {
-            const selectedToolIds = (s.system_tools || []).map((st: any) => st.tool_id);
-            const toolCapabilities: Record<string, MonitorCategory[]> = {};
-            (s.system_tools || []).forEach((st: any) => {
-              toolCapabilities[st.tool_id] = normalizeCaps(st.capabilities || []);
-            });
-            const checkedScenarioIds = (s.system_scenarios || []).map((sc: any) => sc.scenario_id);
-            return {
-              ...createDefaultSystem(),
-              id: s.id,
-              name: s.name,
-              tier: s.class || "A",
-              selectedToolIds,
-              toolCapabilities,
-              checkedScenarioIds,
-            };
-          });
-          setSystems(mappedSystems);
-          setActiveSystemId(mappedSystems[0].id);
-        }
-      } catch (e) {
-        console.warn("Supabase fetch error", e);
-      } finally {
-        setLoadingRemote(false);
-      }
-    };
     fetchRemote();
-  }, []);
+  }, [fetchRemote]);
 
   useEffect(() => {
     if (!activeToolId && tools.length) setActiveToolId(tools[0].id);
   }, [tools, activeToolId]);
+
+  const refreshPending = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => {
+    if (!supabase) return;
+    const tables = ["systems", "system_tools", "system_scenarios", "tools", "tool_scenarios"];
+    const channel = supabase.channel("monitor-sync");
+    tables.forEach((table) => {
+      channel.on("postgres_changes", { event: "*", schema: "public", table }, () => {
+        if (refreshPending.current) return;
+        refreshPending.current = setTimeout(() => {
+          fetchRemote();
+          refreshPending.current = null;
+        }, 300);
+      });
+    });
+    channel.subscribe();
+    return () => {
+      if (refreshPending.current) clearTimeout(refreshPending.current);
+      if (supabase) supabase.removeChannel(channel);
+    };
+  }, [fetchRemote]);
 
   const activeSystem = useMemo(
     () => systems.find((s) => s.id === activeSystemId) || systems[0],
@@ -856,22 +885,56 @@ export default function Home() {
     setActiveSystemId(newId);
   };
 
+  const deleteSystem = (id: string) => {
+    setSystems((prev) => {
+      const filtered = prev.filter((s) => s.id !== id);
+      if (filtered.length === 0) {
+        const def = createDefaultSystem();
+        setActiveSystemId(def.id);
+        return [def];
+      }
+      const nextActive = filtered.find((s) => s.id !== id)?.id || filtered[0].id;
+      setActiveSystemId(nextActive);
+      return filtered;
+    });
+  };
+
   const handleSaveClick = () => {
-    const payload = { system: activeSystem, tools, checkedScenarioIds: activeSystem.checkedScenarioIds };
+    setConflictMsg("");
+    const payload = { system: activeSystem, tools, checkedScenarioIds: activeSystem.checkedScenarioIds, expectedUpdatedAt: activeSystem.updatedAt };
     fetch("/api/save-config", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-    }).catch((e) => console.warn("save-config error", e));
+    })
+      .then(async (res) => {
+        if (res.status === 409) {
+          const msg = (await res.json().catch(() => ({})))?.error || "保存冲突：数据已被他人更新，请刷新后再试。";
+          setConflictMsg(msg);
+          return;
+        }
+        if (!res.ok) {
+          const msg = (await res.json().catch(() => ({})))?.error || "保存失败";
+          setConflictMsg(msg);
+          return;
+        }
+        const data = await res.json().catch(() => ({}));
+        if (data.updatedAt) {
+          updateSystem({ updatedAt: data.updatedAt });
+        }
+        setSaveHint("已提交并保存");
+        setTimeout(() => setSaveHint(""), 1200);
+      })
+      .catch((e) => {
+        console.warn("save-config error", e);
+        setConflictMsg("保存失败，请检查网络或权限");
+      });
 
     fetch("/api/save-score", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ systemId: activeSystem.id, scores, ruleVersion: (ruleData as any).version, details: scores }),
     }).catch((e) => console.warn("save-score error", e));
-
-    setSaveHint("已提交并保存");
-    setTimeout(() => setSaveHint(""), 1200);
   };
 
   const handleExport = () => {
@@ -924,6 +987,13 @@ export default function Home() {
           </div>
         </div>
       )}
+      {conflictMsg && (
+        <div className="fixed inset-x-0 top-16 z-40 flex justify-center px-4">
+          <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-800 shadow-sm">
+            {conflictMsg} <button className="ml-2 text-blue-600 underline" onClick={() => fetchRemote()}>刷新数据</button>
+          </div>
+        </div>
+      )}
 
       <header className="sticky top-0 z-50 border-b border-slate-200 bg-white shadow-sm">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
@@ -946,6 +1016,14 @@ export default function Home() {
                 </button>
               ))}
             </div>
+            <label className="flex items-center gap-2 text-xs text-slate-600">
+              <input
+                type="checkbox"
+                checked={useLocalCache}
+                onChange={(e) => setUseLocalCache(e.target.checked)}
+              />
+              浏览器缓存模式
+            </label>
             <button
               onClick={handleSaveClick}
               className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
@@ -1324,11 +1402,27 @@ export default function Home() {
                       <option value="C">C类一般系统</option>
                     </select>
                     <span>ID: {activeSystem.id}</span>
+                    {activeSystem.updatedAt && <span className="text-slate-400">最后保存 {new Date(activeSystem.updatedAt).toLocaleString()}</span>}
                   </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-5xl font-black text-blue-600">{scores.total}</div>
-                  <div className="text-xs text-slate-400">总分</div>
+                <div className="flex items-start gap-3">
+                  <button
+                    onClick={() => {
+                      if (systems.length <= 1) {
+                        alert("至少保留一个系统");
+                        return;
+                      }
+                      const confirmDelete = window.confirm(`确认删除系统「${activeSystem.name}」？该操作不可撤销。`);
+                      if (confirmDelete) deleteSystem(activeSystem.id);
+                    }}
+                    className="rounded border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
+                  >
+                    删除系统
+                  </button>
+                  <div className="text-right">
+                    <div className="text-5xl font-black text-blue-600">{scores.total}</div>
+                    <div className="text-xs text-slate-400">总分</div>
+                  </div>
                 </div>
               </div>
 

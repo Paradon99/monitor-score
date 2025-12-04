@@ -10,10 +10,25 @@ export async function POST(req: Request) {
     const sys = body.system;
     const tools = body.tools || [];
     const checkedScenarioIds: string[] = body.checkedScenarioIds || [];
+    const expectedUpdatedAt: string | undefined = body.expectedUpdatedAt;
     if (!sys?.id) return NextResponse.json({ error: "Missing system id" }, { status: 400 });
 
+    const now = new Date().toISOString();
+
+    // 乐观锁：如果请求携带 expectedUpdatedAt，则在更新前比对
+    if (expectedUpdatedAt) {
+      const { data: latest, error: latestErr } = await supabaseService
+        .from("systems")
+        .select("updated_at")
+        .eq("id", sys.id)
+        .maybeSingle();
+      if (!latestErr && latest?.updated_at && latest.updated_at !== expectedUpdatedAt) {
+        return NextResponse.json({ error: "数据已被其他人更新，请刷新后再保存" }, { status: 409 });
+      }
+    }
+
     // 更新 systems 基础字段
-    const { error: sysErr } = await supabaseService
+    const { data: updatedRows, error: sysErr } = await supabaseService
       .from("systems")
       .update({
         name: sys.name,
@@ -26,10 +41,12 @@ export async function POST(req: Request) {
         app_total: sys.appTotal,
         app_covered: sys.appCovered,
         documented_items: sys.documentedItems,
-        updated_at: new Date().toISOString(),
+        updated_at: now,
       })
-      .eq("id", sys.id);
+      .eq("id", sys.id)
+      .select("id,updated_at");
     if (sysErr) throw sysErr;
+    const updatedAt = updatedRows?.[0]?.updated_at || now;
 
     // 清理旧关联
     await supabaseService.from("system_tools").delete().eq("system_id", sys.id);
@@ -57,7 +74,7 @@ export async function POST(req: Request) {
       if (error) throw error;
     }
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, updatedAt });
   } catch (e: any) {
     console.error("save-config error", e);
     return NextResponse.json({ error: e.message || "save failed" }, { status: 500 });
