@@ -262,7 +262,7 @@ const ruleById = (id: string) =>
     .find((i: any) => i.id === id) as any;
 
 const createDefaultSystem = (): SystemData => ({
-  id: "sys_default",
+  id: typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `sys_${Date.now()}`,
   name: "基金代销系统",
   tier: "A",
   isSelfBuilt: false,
@@ -272,9 +272,9 @@ const createDefaultSystem = (): SystemData => ({
   serverCovered: 0,
   appTotal: 0,
   appCovered: 0,
-  selectedToolIds: ["zabbix", "prometheus"],
-  toolCapabilities: { zabbix: ["host", "process"], prometheus: ["trans"] },
-  checkedScenarioIds: ["z1", "z2", "p1"],
+  selectedToolIds: [],
+  toolCapabilities: {},
+  checkedScenarioIds: [],
   documentedItems: 5,
   accuracy: "high",
   discoveryRate: "high",
@@ -295,7 +295,7 @@ const createDefaultSystem = (): SystemData => ({
   earlyDetectionCount: 0,
 });
 
-const sanitizeSystem = (s: any): SystemData => ({
+  const sanitizeSystem = (s: any): SystemData => ({
   ...createDefaultSystem(),
   ...s,
   selectedToolIds: Array.isArray(s?.selectedToolIds) ? s.selectedToolIds : [],
@@ -880,7 +880,7 @@ export default function Home() {
   };
 
   const addNewSystem = () => {
-    const newId = `sys_${Date.now()}`;
+    const newId = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `sys_${Date.now()}`;
     setSystems((prev) => [...prev, { ...(INITIAL_SYSTEMS[0] || createDefaultSystem()), id: newId, name: `新系统 ${newId.slice(-4)}` }]);
     setActiveSystemId(newId);
   };
@@ -921,6 +921,11 @@ export default function Home() {
         const data = await res.json().catch(() => ({}));
         if (data.updatedAt) {
           updateSystem({ updatedAt: data.updatedAt });
+        }
+        if (data.systemId && data.systemId !== activeSystem.id) {
+          // 更新当前系统 id，保持后续保存一致
+          setSystems((prev) => prev.map((s) => (s.id === activeSystem.id ? { ...s, id: data.systemId } : s)));
+          setActiveSystemId(data.systemId);
         }
         setSaveHint("已提交并保存");
         setTimeout(() => setSaveHint(""), 1200);
