@@ -295,10 +295,12 @@ const createDefaultSystem = (): SystemData => ({
   earlyDetectionCount: 0,
 });
 
-  const sanitizeSystem = (s: any): SystemData => ({
+const sanitizeSystem = (s: any): SystemData => ({
   ...createDefaultSystem(),
   ...s,
-  selectedToolIds: Array.isArray(s?.selectedToolIds) ? s.selectedToolIds : [],
+  selectedToolIds: Array.isArray(s?.selectedToolIds)
+    ? s.selectedToolIds.filter((id: string) => typeof id === "string" && /^[0-9a-fA-F-]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(id))
+    : [],
   toolCapabilities: typeof s?.toolCapabilities === "object" && s?.toolCapabilities ? s.toolCapabilities : {},
   checkedScenarioIds: Array.isArray(s?.checkedScenarioIds) ? s.checkedScenarioIds : [],
   documentedItems: Number.isFinite(s?.documentedItems) ? s.documentedItems : 0,
@@ -636,6 +638,7 @@ export default function Home() {
   const [rightPanelMaxHeight, setRightPanelMaxHeight] = useState<number | undefined>(undefined);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [conflictMsg, setConflictMsg] = useState<string>("");
+  const [saving, setSaving] = useState<boolean>(false);
 
   useEffect(() => {
     if (!useLocalCache) return;
@@ -893,53 +896,104 @@ export default function Home() {
         setActiveSystemId(def.id);
         return [def];
       }
-      const nextActive = filtered.find((s) => s.id !== id)?.id || filtered[0].id;
+      const nextActive = filtered[0].id;
       setActiveSystemId(nextActive);
       return filtered;
     });
+
+    // 同步删除 Supabase
+    const uuidRe = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
+    if (uuidRe.test(id)) {
+      fetch("/api/delete-system", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      }).catch((err) => {
+        console.warn("delete-system error", err);
+        setConflictMsg("删除失败，请稍后重试");
+      });
+    }
   };
 
-  const handleSaveClick = () => {
+  const handleSaveClick = async () => {
     setConflictMsg("");
+    setSaving(true);
     const payload = { system: activeSystem, tools, checkedScenarioIds: activeSystem.checkedScenarioIds, expectedUpdatedAt: activeSystem.updatedAt };
-    fetch("/api/save-config", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    })
-      .then(async (res) => {
-        if (res.status === 409) {
-          const msg = (await res.json().catch(() => ({})))?.error || "保存冲突：数据已被他人更新，请刷新后再试。";
-          setConflictMsg(msg);
-          return;
-        }
-        if (!res.ok) {
-          const msg = (await res.json().catch(() => ({})))?.error || "保存失败";
-          setConflictMsg(msg);
-          return;
-        }
-        const data = await res.json().catch(() => ({}));
-        if (data.updatedAt) {
-          updateSystem({ updatedAt: data.updatedAt });
-        }
-        if (data.systemId && data.systemId !== activeSystem.id) {
-          // 更新当前系统 id，保持后续保存一致
-          setSystems((prev) => prev.map((s) => (s.id === activeSystem.id ? { ...s, id: data.systemId } : s)));
-          setActiveSystemId(data.systemId);
-        }
-        setSaveHint("已提交并保存");
-        setTimeout(() => setSaveHint(""), 1200);
-      })
-      .catch((e) => {
-        console.warn("save-config error", e);
-        setConflictMsg("保存失败，请检查网络或权限");
+    try {
+      const resCfg = await fetch("/api/save-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
+      if (resCfg.status === 409) {
+        const msg = (await resCfg.json().catch(() => ({})))?.error || "保存冲突：数据已被他人更新，请刷新后再试。";
+        setConflictMsg(msg);
+        setSaving(false);
+        return;
+      }
+      if (!resCfg.ok) {
+        const msg = (await resCfg.json().catch(() => ({})))?.error || "保存失败";
+        setConflictMsg(msg);
+        setSaving(false);
+        return;
+      }
+      const data = await resCfg.json().catch(() => ({}));
+      if (data.updatedAt) {
+        updateSystem({ updatedAt: data.updatedAt });
+      }
+      if (data.systemId && data.systemId !== activeSystem.id) {
+        setSystems((prev) => prev.map((s) => (s.id === activeSystem.id ? { ...s, id: data.systemId } : s)));
+        setActiveSystemId(data.systemId);
+      }
+      if (data.toolIdMap || data.scenarioIdMap) {
+        const idMap = data.toolIdMap || {};
+        const scenMap = data.scenarioIdMap || {};
+        setTools((prev) =>
+          prev.map((t) => {
+            const newId = idMap[t.id] || t.id;
+            return {
+              ...t,
+              id: newId,
+              scenarios: (t.scenarios || []).map((s) => ({
+                ...s,
+                id: scenMap[s.id] || s.id,
+              })),
+            };
+          })
+        );
+        setSystems((prev) =>
+          prev.map((s) => ({
+            ...s,
+            id: s.id === activeSystem.id && data.systemId ? data.systemId : s.id,
+            selectedToolIds: s.selectedToolIds.map((tid) => idMap[tid] || tid),
+            toolCapabilities: Object.fromEntries(
+              Object.entries(s.toolCapabilities || {}).map(([tid, caps]) => [idMap[tid] || tid, caps as any])
+            ),
+            checkedScenarioIds: s.checkedScenarioIds.map((sid) => scenMap[sid] || sid),
+          }))
+        );
+      }
 
-    fetch("/api/save-score", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ systemId: activeSystem.id, scores, ruleVersion: (ruleData as any).version, details: scores }),
-    }).catch((e) => console.warn("save-score error", e));
+      const resScore = await fetch("/api/save-score", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ systemId: data.systemId || activeSystem.id, scores, ruleVersion: (ruleData as any).version, details: scores }),
+      });
+      if (!resScore.ok) {
+        const msg = (await resScore.json().catch(() => ({})))?.error || "评分保存失败";
+        setConflictMsg(msg);
+        setSaving(false);
+        return;
+      }
+
+      setSaveHint("已提交并保存到数据库");
+      setTimeout(() => setSaveHint(""), 1200);
+    } catch (e) {
+      console.warn("save-config/score error", e);
+      setConflictMsg("保存失败，请检查网络或权限");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleExport = () => {
@@ -1007,34 +1061,37 @@ export default function Home() {
             <div className="hidden text-lg font-bold md:block">监控评分协作台</div>
             <div className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">规则版本 {(ruleData as any).version || "v1"}</div>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="flex rounded-lg bg-slate-100 p-1">
-              {["scoring", "config", "dashboard"].map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setView(tab as any)}
-                  className={`rounded px-3 py-1.5 text-sm font-medium ${
-                    view === tab ? "bg-white text-blue-600 shadow-sm" : "text-slate-600 hover:text-slate-800"
-                  }`}
-                >
-                  {tab === "scoring" ? "评分" : tab === "config" ? "配置" : "报表"}
-                </button>
-              ))}
-            </div>
-            <label className="flex items-center gap-2 text-xs text-slate-600">
-              <input
-                type="checkbox"
-                checked={useLocalCache}
-                onChange={(e) => setUseLocalCache(e.target.checked)}
-              />
-              浏览器缓存模式
-            </label>
-            <button
-              onClick={handleSaveClick}
-              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
-            >
-              ☁️ 提交保存
-            </button>
+            <div className="flex items-center gap-3">
+              <div className="flex rounded-lg bg-slate-100 p-1">
+                {["scoring", "config", "dashboard"].map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setView(tab as any)}
+                    className={`rounded px-3 py-1.5 text-sm font-medium ${
+                      view === tab ? "bg-white text-blue-600 shadow-sm" : "text-slate-600 hover:text-slate-800"
+                    }`}
+                  >
+                    {tab === "scoring" ? "评分" : tab === "config" ? "配置" : "报表"}
+                  </button>
+                ))}
+              </div>
+              <label className="flex items-center gap-2 text-xs text-slate-600">
+                <input
+                  type="checkbox"
+                  checked={useLocalCache}
+                  onChange={(e) => setUseLocalCache(e.target.checked)}
+                />
+                浏览器缓存模式
+              </label>
+              <button
+                onClick={handleSaveClick}
+                disabled={saving}
+                className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition ${
+                  saving ? "bg-blue-300 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
+                }`}
+              >
+                {saving ? "保存中..." : "☁️ 提交保存"}
+              </button>
             <button
               onClick={handleExport}
               className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
