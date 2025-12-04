@@ -254,7 +254,10 @@ const INITIAL_SYSTEMS: SystemData[] =
 const SYSTEM_STORAGE_KEY = "monitor_systems_v8";
 const TOOL_STORAGE_KEY = "monitor_tools_v8";
 
-const ruleById = (id: string) => ruleData.dimensions.flatMap((d) => d.items).find((i) => i.id === id);
+const ruleById = (id: string) =>
+  ((ruleData as any).dimensions as any[])
+    .flatMap((d: any) => d.items || [])
+    .find((i: any) => i.id === id) as any;
 
 const createDefaultSystem = (): SystemData => ({
   id: "sys_default",
@@ -362,8 +365,11 @@ const Badge = ({
   );
 };
 
-const Card = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
-  <div className={`bg-white rounded-xl border border-slate-200 shadow-sm ${className}`}>{children}</div>
+type CardProps = React.HTMLAttributes<HTMLDivElement> & { children: React.ReactNode };
+const Card = ({ children, className = "", ...rest }: CardProps) => (
+  <div className={`bg-white rounded-xl border border-slate-200 shadow-sm ${className}`} {...rest}>
+    {children}
+  </div>
 );
 
 const Accordion = ({
