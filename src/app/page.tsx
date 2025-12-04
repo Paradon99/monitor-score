@@ -988,6 +988,8 @@ export default function Home() {
 
       setSaveHint("已提交并保存到数据库");
       setTimeout(() => setSaveHint(""), 1200);
+      // 保存成功后强制刷新远端，确保列表无重复
+      await fetchRemote();
     } catch (e) {
       console.warn("save-config/score error", e);
       setConflictMsg("保存失败，请检查网络或权限");

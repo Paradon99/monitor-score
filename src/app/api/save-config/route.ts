@@ -22,25 +22,35 @@ export async function POST(req: Request) {
 
     // 1) 系统插入/更新（乐观锁）
     if (!isUUID(sys.id)) {
-      const { data: inserted, error: insertErr } = await supabaseService
+      // 尝试按名称匹配已有系统，避免重复插入
+      const { data: existingByName } = await supabaseService
         .from("systems")
-        .insert({
-          name: sys.name,
-          class: sys.tier,
-          is_self_built: sys.isSelfBuilt,
-          server_coverage: sys.serverCoverage,
-          app_coverage: sys.appCoverage,
-          server_total: sys.serverTotal,
-          server_covered: sys.serverCovered,
-          app_total: sys.appTotal,
-          app_covered: sys.appCovered,
-          documented_items: sys.documentedItems,
-          updated_at: now,
-        })
-        .select("id,updated_at")
-        .single();
-      if (insertErr) throw insertErr;
-      targetSystemId = inserted.id;
+        .select("id")
+        .eq("name", sys.name || "")
+        .maybeSingle();
+      if (existingByName?.id) {
+        targetSystemId = existingByName.id;
+      } else {
+        const { data: inserted, error: insertErr } = await supabaseService
+          .from("systems")
+          .insert({
+            name: sys.name,
+            class: sys.tier,
+            is_self_built: sys.isSelfBuilt,
+            server_coverage: sys.serverCoverage,
+            app_coverage: sys.appCoverage,
+            server_total: sys.serverTotal,
+            server_covered: sys.serverCovered,
+            app_total: sys.appTotal,
+            app_covered: sys.appCovered,
+            documented_items: sys.documentedItems,
+            updated_at: now,
+          })
+          .select("id,updated_at")
+          .single();
+        if (insertErr) throw insertErr;
+        targetSystemId = inserted.id;
+      }
     } else {
       if (expectedUpdatedAt) {
         const { data: latest, error: latestErr } = await supabaseService.from("systems").select("updated_at").eq("id", targetSystemId).maybeSingle();
@@ -71,13 +81,19 @@ export async function POST(req: Request) {
     for (const t of tools) {
       let dbToolId = t.id;
       if (!isUUID(t.id)) {
-        const { data, error } = await supabaseService
-          .from("tools")
-          .insert({ name: t.name, default_caps: t.defaultCapabilities || [], updated_at: now })
-          .select("id")
-          .single();
-        if (error) throw error;
-        dbToolId = data.id;
+        // 尝试按名称匹配已有工具
+        const { data: existingTool } = await supabaseService.from("tools").select("id").eq("name", t.name || "").maybeSingle();
+        if (existingTool?.id) {
+          dbToolId = existingTool.id;
+        } else {
+          const { data, error } = await supabaseService
+            .from("tools")
+            .insert({ name: t.name, default_caps: t.defaultCapabilities || [], updated_at: now })
+            .select("id")
+            .single();
+          if (error) throw error;
+          dbToolId = data.id;
+        }
         toolIdMap[t.id] = dbToolId;
       } else {
         const { error } = await supabaseService
