@@ -674,7 +674,9 @@ export default function Home() {
         const { data: toolsData, error: toolsErr } = await supabase
           .from("tools")
           .select("id,name,default_caps,tool_scenarios(id,category,metric,threshold,level)");
-        const { data: systemsData, error: sysErr } = await supabase.from("systems").select("id,name,class");
+        const { data: systemsData, error: sysErr } = await supabase
+          .from("systems")
+          .select("id,name,class,system_tools(tool_id,capabilities),system_scenarios(scenario_id)");
         if (toolsErr || sysErr) {
           console.warn("Supabase fetch failed", toolsErr || sysErr);
           return;
@@ -695,12 +697,23 @@ export default function Home() {
           setTools(mappedTools);
         }
         if (systemsData && systemsData.length) {
-          const mappedSystems: SystemData[] = systemsData.map((s: any) => ({
-            ...createDefaultSystem(),
-            id: s.id,
-            name: s.name,
-            tier: s.class || "A",
-          }));
+          const mappedSystems: SystemData[] = systemsData.map((s: any) => {
+            const selectedToolIds = (s.system_tools || []).map((st: any) => st.tool_id);
+            const toolCapabilities: Record<string, MonitorCategory[]> = {};
+            (s.system_tools || []).forEach((st: any) => {
+              toolCapabilities[st.tool_id] = normalizeCaps(st.capabilities || []);
+            });
+            const checkedScenarioIds = (s.system_scenarios || []).map((sc: any) => sc.scenario_id);
+            return {
+              ...createDefaultSystem(),
+              id: s.id,
+              name: s.name,
+              tier: s.class || "A",
+              selectedToolIds,
+              toolCapabilities,
+              checkedScenarioIds,
+            };
+          });
           setSystems(mappedSystems);
           setActiveSystemId(mappedSystems[0].id);
         }
