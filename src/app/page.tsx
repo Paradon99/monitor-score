@@ -1470,10 +1470,7 @@ export default function Home() {
                         : "border-transparent bg-white hover:border-slate-300"
                     }`}
                   >
-                    <button
-                      onClick={() => setActiveSystemId(sys.id)}
-                      className="block w-full text-left"
-                    >
+                    <button onClick={() => setActiveSystemId(sys.id)} className="block w-full text-left">
                       <div className="font-bold text-slate-800">{sys.name}</div>
                       <div className="mt-1 flex justify-between text-xs text-slate-500">
                         <span>{sys.tier}类系统</span>
@@ -1491,7 +1488,7 @@ export default function Home() {
                       }}
                       className="absolute right-2 top-2 rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-500 opacity-0 shadow-sm transition group-hover:opacity-100 hover:text-red-600 hover:border-red-200"
                     >
-                      🗑 删除
+                      删除
                     </button>
                   </div>
                 ))}
@@ -1520,24 +1517,9 @@ export default function Home() {
                     {activeSystem.updatedAt && <span className="text-slate-400">最后保存 {new Date(activeSystem.updatedAt).toLocaleString()}</span>}
                   </div>
                 </div>
-                <div className="flex items-start gap-3">
-                  <button
-                    onClick={() => {
-                      if (systems.length <= 1) {
-                        alert("至少保留一个系统");
-                        return;
-                      }
-                      const confirmDelete = window.confirm(`确认删除系统「${activeSystem.name}」？该操作不可撤销。`);
-                      if (confirmDelete) deleteSystem(activeSystem.id, activeSystem.name);
-                    }}
-                    className="rounded border border-red-200 px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50"
-                  >
-                    删除系统
-                  </button>
-                  <div className="text-right">
-                    <div className="text-5xl font-black text-blue-600">{scores.total}</div>
-                    <div className="text-xs text-slate-400">总分</div>
-                  </div>
+                <div className="text-right">
+                  <div className="text-5xl font-black text-blue-600">{scores.total}</div>
+                  <div className="text-xs text-slate-400">总分</div>
                 </div>
               </div>
 
@@ -1706,43 +1688,47 @@ export default function Home() {
                               </div>
                               <table className="w-full text-sm">
                                 <thead className="bg-slate-50 text-slate-500">
-                                  <tr>
-                                    <th className="w-10 px-3 py-2 text-left">
-                                      <input
-                                        type="checkbox"
-                                        checked={scens.every((s) => activeSystem.checkedScenarioIds.includes(s.id))}
-                                        onChange={(e) => {
-                                          const allIds = scens.map((s) => s.id);
-                                          if (e.target.checked) {
-                                            updateSystem({ checkedScenarioIds: Array.from(new Set([...activeSystem.checkedScenarioIds, ...allIds])) });
-                                          } else {
-                                            updateSystem({
-                                              checkedScenarioIds: activeSystem.checkedScenarioIds.filter((id) => !allIds.includes(id)),
-                                            });
-                                          }
-                                        }}
-                                      />
-                                    </th>
-                                    <th className="px-3 py-2 text-left">类别</th>
-                                    <th className="px-3 py-2 text-left">指标</th>
-                                    <th className="px-3 py-2 text-left">阈值</th>
-                                    <th className="px-3 py-2 text-center">级别</th>
-                                    <th className="px-3 py-2 text-center">工具</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {scens.map((s) => (
-                                    <tr key={s.id} className="border-t border-slate-100 hover:bg-slate-50">
-                                      <td className="px-3 py-2 text-left">
+                                    <tr>
+                                      <th className="w-10 px-3 py-2 text-left">
                                         <input
                                           type="checkbox"
-                                          checked={activeSystem.checkedScenarioIds.includes(s.id)}
-                                          onChange={() => toggleScenario(s.id)}
+                                          checked={scens.every((s) => activeSystem.checkedScenarioIds.includes(s.id))}
+                                          onChange={(e) => {
+                                            const allIds = scens.map((s) => s.id);
+                                            if (e.target.checked) {
+                                              updateSystem({ checkedScenarioIds: Array.from(new Set([...activeSystem.checkedScenarioIds, ...allIds])) });
+                                            } else {
+                                              updateSystem({
+                                                checkedScenarioIds: activeSystem.checkedScenarioIds.filter((id) => !allIds.includes(id)),
+                                              });
+                                            }
+                                          }}
                                         />
-                                      </td>
-                                      <td className="px-3 py-2 text-slate-700">{CATEGORY_LABELS[s.category]}</td>
-                                      <td className="px-3 py-2 text-slate-800 font-medium">{s.metric}</td>
-                                      <td className="px-3 py-2 text-slate-500 text-sm">{s.threshold}</td>
+                                      </th>
+                                      <th className="px-3 py-2 text-left">类别</th>
+                                      <th className="px-3 py-2 text-left">指标</th>
+                                      <th className="px-3 py-2 text-left">阈值</th>
+                                      <th className="px-3 py-2 text-center">级别</th>
+                                      <th className="px-3 py-2 text-center">工具</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {scens.map((s) => (
+                                      <tr
+                                        key={s.id}
+                                        className="border-t border-slate-100 hover:bg-slate-50 cursor-pointer"
+                                        onClick={() => toggleScenario(s.id)}
+                                      >
+                                        <td className="px-3 py-2 text-left">
+                                          <input
+                                            type="checkbox"
+                                            checked={activeSystem.checkedScenarioIds.includes(s.id)}
+                                            onChange={() => toggleScenario(s.id)}
+                                          />
+                                        </td>
+                                        <td className="px-3 py-2 text-slate-700">{CATEGORY_LABELS[s.category]}</td>
+                                        <td className="px-3 py-2 text-slate-800 font-medium">{s.metric}</td>
+                                        <td className="px-3 py-2 text-slate-500 text-sm">{s.threshold}</td>
                                       <td className="px-3 py-2 text-center">
                                         <span
                                           className={`inline-block h-3.5 w-3.5 rounded-full ${
