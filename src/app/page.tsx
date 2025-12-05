@@ -12,7 +12,6 @@ import { supabase } from "../../lib/supabaseClient";
 type MonitorLevel = "red" | "orange" | "yellow" | "gray";
 type MonitorCategory = "host" | "process" | "network" | "db" | "trans" | "link" | "data" | "client";
 type Task = { id: string; name: string; description?: string };
-type Task = { id: string; name: string; description?: string };
 
 interface Scenario {
   id: string;
