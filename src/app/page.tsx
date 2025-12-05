@@ -1649,23 +1649,22 @@ export default function Home() {
                         {activeSystem.selectedToolIds.length === 0 && (
                           <div className="p-4 text-sm text-slate-400">请先在左侧选择接入的工具</div>
                         )}
-                        {activeSystem.selectedToolIds
-                          .map((tid) => tools.find((t) => t.id === tid))
-                          .filter((t): t is MonitorTool => Boolean(t))
-                          .sort(
-                            (a, b) =>
-                              (b.scenarios?.length || 0) - (a.scenarios?.length || 0) ||
-                              a.name.localeCompare(b.name, "zh-CN")
-                          )
+                        {sortedToolsForAccess
+                          .filter((t) => activeSystem.selectedToolIds.includes(t.id))
                           .map((tool) => {
                             const caps = activeSystem.toolCapabilities[tool.id] || [];
                             const scens = (tool.scenarios || [])
                               .filter((s) => caps.includes(s.category))
                               .slice()
-                              .sort(
-                                (a, b) =>
-                                  a.metric.localeCompare(b.metric, "zh-CN") || levelWeight[a.level] - levelWeight[b.level]
-                              );
+                              .sort((a, b) => {
+                                const catA = CATEGORY_LABELS[a.category];
+                                const catB = CATEGORY_LABELS[b.category];
+                                const catCmp = catA.localeCompare(catB, "zh-CN");
+                                if (catCmp !== 0) return catCmp;
+                                const metricCmp = a.metric.localeCompare(b.metric, "zh-CN");
+                                if (metricCmp !== 0) return metricCmp;
+                                return levelWeight[a.level] - levelWeight[b.level];
+                              });
                             if (scens.length === 0) return null;
                           return (
                             <div key={tool.id} className="border-b border-slate-100">
