@@ -932,77 +932,92 @@ export default function Home() {
   const handleSaveClick = async () => {
     setConflictMsg("");
     setSaving(true);
-    const payload = { system: activeSystem, tools, checkedScenarioIds: activeSystem.checkedScenarioIds, expectedUpdatedAt: activeSystem.updatedAt };
+    let updatedSystems = [...systems];
+    let toolIdMap: Record<string, string> = {};
+    let scenarioIdMap: Record<string, string> = {};
+
     try {
-      const resCfg = await fetch("/api/save-config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (resCfg.status === 409) {
-        const msg = (await resCfg.json().catch(() => ({})))?.error || "保存冲突：数据已被他人更新，请刷新后再试。";
-        setConflictMsg(msg);
-        setSaving(false);
-        return;
+      for (const sys of systems) {
+        const payload = {
+          system: sys,
+          tools,
+          checkedScenarioIds: sys.checkedScenarioIds,
+          expectedUpdatedAt: sys.updatedAt,
+        };
+        const resCfg = await fetch("/api/save-config", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        if (resCfg.status === 409) {
+          const msg = (await resCfg.json().catch(() => ({})))?.error || "保存冲突：数据已被他人更新，请刷新后再试。";
+          setConflictMsg(msg);
+          setSaving(false);
+          return;
+        }
+        if (!resCfg.ok) {
+          const msg = (await resCfg.json().catch(() => ({})))?.error || "保存失败";
+          setConflictMsg(msg);
+          setSaving(false);
+          return;
+        }
+        const data = await resCfg.json().catch(() => ({}));
+        const newSysId = data.systemId || sys.id;
+        const updatedAt = data.updatedAt;
+        toolIdMap = { ...toolIdMap, ...(data.toolIdMap || {}) };
+        scenarioIdMap = { ...scenarioIdMap, ...(data.scenarioIdMap || {}) };
+
+        updatedSystems = updatedSystems.map((s) =>
+          s.id === sys.id
+            ? {
+                ...s,
+                id: newSysId,
+                updatedAt: updatedAt || s.updatedAt,
+                selectedToolIds: s.selectedToolIds.map((tid) => data.toolIdMap?.[tid] || tid),
+                toolCapabilities: Object.fromEntries(
+                  Object.entries(s.toolCapabilities || {}).map(([tid, caps]) => [data.toolIdMap?.[tid] || tid, caps as any])
+                ),
+                checkedScenarioIds: s.checkedScenarioIds.map((sid) => data.scenarioIdMap?.[sid] || sid),
+              }
+            : s
+        );
+
+        // 保存评分
+        const resScore = await fetch("/api/save-score", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ systemId: newSysId, scores: calculateScore({ ...sys, id: newSysId }, tools), ruleVersion: (ruleData as any).version, details: scores }),
+        });
+        if (!resScore.ok) {
+          const msg = (await resScore.json().catch(() => ({})))?.error || "评分保存失败";
+          setConflictMsg(msg);
+          setSaving(false);
+          return;
+        }
       }
-      if (!resCfg.ok) {
-        const msg = (await resCfg.json().catch(() => ({})))?.error || "保存失败";
-        setConflictMsg(msg);
-        setSaving(false);
-        return;
-      }
-      const data = await resCfg.json().catch(() => ({}));
-      if (data.updatedAt) {
-        updateSystem({ updatedAt: data.updatedAt });
-      }
-      if (data.systemId && data.systemId !== activeSystem.id) {
-        setSystems((prev) => prev.map((s) => (s.id === activeSystem.id ? { ...s, id: data.systemId } : s)));
-        setActiveSystemId(data.systemId);
-      }
-      if (data.toolIdMap || data.scenarioIdMap) {
-        const idMap = data.toolIdMap || {};
-        const scenMap = data.scenarioIdMap || {};
+
+      if (Object.keys(toolIdMap).length || Object.keys(scenarioIdMap).length) {
         setTools((prev) =>
           prev.map((t) => {
-            const newId = idMap[t.id] || t.id;
+            const newId = toolIdMap[t.id] || t.id;
             return {
               ...t,
               id: newId,
               scenarios: (t.scenarios || []).map((s) => ({
                 ...s,
-                id: scenMap[s.id] || s.id,
+                id: scenarioIdMap[s.id] || s.id,
               })),
             };
           })
         );
-        setSystems((prev) =>
-          prev.map((s) => ({
-            ...s,
-            id: s.id === activeSystem.id && data.systemId ? data.systemId : s.id,
-            selectedToolIds: s.selectedToolIds.map((tid) => idMap[tid] || tid),
-            toolCapabilities: Object.fromEntries(
-              Object.entries(s.toolCapabilities || {}).map(([tid, caps]) => [idMap[tid] || tid, caps as any])
-            ),
-            checkedScenarioIds: s.checkedScenarioIds.map((sid) => scenMap[sid] || sid),
-          }))
-        );
       }
 
-      const resScore = await fetch("/api/save-score", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ systemId: data.systemId || activeSystem.id, scores, ruleVersion: (ruleData as any).version, details: scores }),
-      });
-      if (!resScore.ok) {
-        const msg = (await resScore.json().catch(() => ({})))?.error || "评分保存失败";
-        setConflictMsg(msg);
-        setSaving(false);
-        return;
-      }
+      setSystems(updatedSystems);
+      const newActiveId = updatedSystems.find((s) => s.name === activeSystem.name)?.id || updatedSystems[0].id;
+      setActiveSystemId(newActiveId);
 
-      setSaveHint("已提交并保存到数据库");
+      setSaveHint("全部系统已保存到数据库");
       setTimeout(() => setSaveHint(""), 1200);
-      // 保存成功后强制刷新远端，确保列表无重复
       await fetchRemote();
     } catch (e) {
       console.warn("save-config/score error", e);
