@@ -714,6 +714,16 @@ export default function Home() {
         if (!tasksData.find((t) => t.id === activeTaskId)) {
           setActiveTaskId(tasksData[0].id);
         }
+      } else if (!tasksData?.length) {
+        // 若 tasks 表为空但工具/系统存在，自动用其 task_id 构造任务列表
+        const candidateIds = new Set<string>();
+        (toolsData || []).forEach((t: any) => t.task_id && candidateIds.add(t.task_id));
+        (systemsData || []).forEach((s: any) => s.task_id && candidateIds.add(s.task_id));
+        const derived = Array.from(candidateIds).map((id) => ({ id, name: `任务 ${id.slice(0, 8)}` }));
+        if (derived.length) {
+          setTasks(derived);
+          setActiveTaskId(derived[0].id);
+        }
       }
 
       if (toolsData) {
@@ -729,7 +739,12 @@ export default function Home() {
             level: (s.level as MonitorLevel) || "gray",
           })),
         }));
-        setTools(mappedTools);
+        if (mappedTools.length) {
+          setTools(mappedTools);
+        } else if (activeTaskId === DEFAULT_TASK_ID) {
+          // 当前任务没有工具时，使用默认内置工具作为兜底
+          setTools(mergeStandardIndicators(DEFAULT_TOOLS));
+        }
       }
       if (systemsData && systemsData.length) {
         const mappedSystems: SystemData[] = systemsData.map((s: any) => {
@@ -752,6 +767,10 @@ export default function Home() {
         });
         setSystems(mappedSystems);
         setActiveSystemId((prev) => mappedSystems.find((m) => m.id === prev)?.id || mappedSystems[0].id);
+      } else if (activeTaskId === DEFAULT_TASK_ID) {
+        // 默认任务无数据时使用内置种子
+        setSystems(initialSystems.length ? initialSystems : [createDefaultSystem()]);
+        setTools(mergeStandardIndicators(DEFAULT_TOOLS));
       }
     } catch (e) {
       console.warn("Supabase fetch error", e);
