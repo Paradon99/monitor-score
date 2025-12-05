@@ -11,6 +11,7 @@ import { supabase } from "../../lib/supabaseClient";
 
 type MonitorLevel = "red" | "orange" | "yellow" | "gray";
 type MonitorCategory = "host" | "process" | "network" | "db" | "trans" | "link" | "data" | "client";
+type Task = { id: string; name: string; description?: string };
 
 interface Scenario {
   id: string;
@@ -255,6 +256,7 @@ const INITIAL_SYSTEMS: SystemData[] =
 
 const SYSTEM_STORAGE_KEY = "monitor_systems_v8";
 const TOOL_STORAGE_KEY = "monitor_tools_v8";
+const TASK_STORAGE_KEY = "monitor_tasks_active";
 
 const ruleById = (id: string) =>
   ((ruleData as any).dimensions as any[])
@@ -623,6 +625,8 @@ export default function Home() {
   const [systems, setSystems] = useState<SystemData[]>(initialSystems.length ? initialSystems : [createDefaultSystem()]);
   const [activeSystemId, setActiveSystemId] = useState<string>(initialSystems[0]?.id || "sys_default");
   const [tools, setTools] = useState<MonitorTool[]>(mergeStandardIndicators(DEFAULT_TOOLS));
+  const [tasks, setTasks] = useState<Task[]>([{ id: "default_task", name: "默认任务" }]);
+  const [activeTaskId, setActiveTaskId] = useState<string>("default_task");
   const [view, setView] = useState<"dashboard" | "scoring" | "config">("scoring");
   const [saveHint, setSaveHint] = useState<string>("");
   const [loadingRemote, setLoadingRemote] = useState<boolean>(false);
@@ -641,11 +645,16 @@ export default function Home() {
   const [saving, setSaving] = useState<boolean>(false);
   const [syncing, setSyncing] = useState<boolean>(false);
   const [hasLocalData, setHasLocalData] = useState<boolean>(false);
+  const [creatingTask, setCreatingTask] = useState<boolean>(false);
+  const [newTaskName, setNewTaskName] = useState<string>("");
+  const [cloneFromTaskId, setCloneFromTaskId] = useState<string | null>(null);
 
   useEffect(() => {
     try {
       const savedSys = localStorage.getItem(SYSTEM_STORAGE_KEY);
       const savedTools = localStorage.getItem(TOOL_STORAGE_KEY);
+      const savedTask = localStorage.getItem(TASK_STORAGE_KEY);
+      if (savedTask) setActiveTaskId(savedTask);
       if (savedSys || savedTools) setHasLocalData(true);
       if (savedSys) {
         const parsed = JSON.parse(savedSys);
@@ -675,20 +684,35 @@ export default function Home() {
     return () => clearTimeout(timer);
   }, [tools]);
 
+  useEffect(() => {
+    localStorage.setItem(TASK_STORAGE_KEY, activeTaskId);
+  }, [activeTaskId]);
+
   const fetchRemote = useCallback(async () => {
     if (!supabase) return;
+    if (!activeTaskId) return;
     setLoadingRemote(true);
     try {
       const { data: toolsData, error: toolsErr } = await supabase
         .from("tools")
-        .select("id,name,default_caps,tool_scenarios(id,category,metric,threshold,level),updated_at");
+        .select("id,name,default_caps,tool_scenarios(id,category,metric,threshold,level),updated_at,task_id")
+        .eq("task_id", activeTaskId);
       const { data: systemsData, error: sysErr } = await supabase
         .from("systems")
-        .select("id,name,class,updated_at,system_tools(tool_id,caps_selected),system_scenarios(scenario_id)");
+        .select("id,name,class,updated_at,task_id,system_tools(tool_id,caps_selected),system_scenarios(scenario_id)")
+        .eq("task_id", activeTaskId);
+      const { data: tasksData } = await supabase.from("tasks").select("id,name,description");
       if (toolsErr || sysErr) {
         console.warn("Supabase fetch failed", toolsErr || sysErr);
         return;
       }
+      if (tasksData && tasksData.length) {
+        setTasks(tasksData);
+        if (!tasksData.find((t) => t.id === activeTaskId)) {
+          setActiveTaskId(tasksData[0].id);
+        }
+      }
+
       if (toolsData) {
         const mappedTools: MonitorTool[] = toolsData.map((t: any) => ({
           id: t.id,
@@ -740,6 +764,10 @@ export default function Home() {
     setSaveHint("已从数据库同步");
     setTimeout(() => setSaveHint(""), 1200);
   };
+
+  useEffect(() => {
+    fetchRemote();
+  }, [fetchRemote, activeTaskId]);
 
   useEffect(() => {
     if (!activeToolId && tools.length) setActiveToolId(tools[0].id);
@@ -854,7 +882,7 @@ export default function Home() {
     fetch("/api/delete-tool", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
+      body: JSON.stringify({ id, taskId: activeTaskId }),
     }).catch((err) => console.warn("delete-tool error", err));
   };
 
@@ -922,7 +950,7 @@ export default function Home() {
     fetch("/api/delete-system", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, name }),
+      body: JSON.stringify({ id, name, taskId: activeTaskId }),
     }).catch((err) => {
       console.warn("delete-system error", err);
       setConflictMsg("删除失败，请稍后重试");
@@ -930,6 +958,10 @@ export default function Home() {
   };
 
   const handleSaveClick = async () => {
+    if (!activeTaskId) {
+      setConflictMsg("请先选择任务");
+      return;
+    }
     setConflictMsg("");
     setSaving(true);
     let updatedSystems = [...systems];
@@ -943,6 +975,7 @@ export default function Home() {
           tools,
           checkedScenarioIds: sys.checkedScenarioIds,
           expectedUpdatedAt: sys.updatedAt,
+          taskId: activeTaskId,
         };
         const resCfg = await fetch("/api/save-config", {
           method: "POST",
@@ -967,26 +1000,30 @@ export default function Home() {
         toolIdMap = { ...toolIdMap, ...(data.toolIdMap || {}) };
         scenarioIdMap = { ...scenarioIdMap, ...(data.scenarioIdMap || {}) };
 
-        updatedSystems = updatedSystems.map((s) =>
-          s.id === sys.id
-            ? {
-                ...s,
-                id: newSysId,
-                updatedAt: updatedAt || s.updatedAt,
-                selectedToolIds: s.selectedToolIds.map((tid) => data.toolIdMap?.[tid] || tid),
-                toolCapabilities: Object.fromEntries(
-                  Object.entries(s.toolCapabilities || {}).map(([tid, caps]) => [data.toolIdMap?.[tid] || tid, caps as any])
-                ),
-                checkedScenarioIds: s.checkedScenarioIds.map((sid) => data.scenarioIdMap?.[sid] || sid),
-              }
-            : s
-        );
+        const mappedSys = {
+          ...sys,
+          id: newSysId,
+          updatedAt: updatedAt || sys.updatedAt,
+          selectedToolIds: sys.selectedToolIds.map((tid) => data.toolIdMap?.[tid] || tid),
+          toolCapabilities: Object.fromEntries(
+            Object.entries(sys.toolCapabilities || {}).map(([tid, caps]) => [data.toolIdMap?.[tid] || tid, caps as any])
+          ),
+          checkedScenarioIds: sys.checkedScenarioIds.map((sid) => data.scenarioIdMap?.[sid] || sid),
+        };
+
+        updatedSystems = updatedSystems.map((s) => (s.id === sys.id ? mappedSys : s));
 
         // 保存评分
         const resScore = await fetch("/api/save-score", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ systemId: newSysId, scores: calculateScore({ ...sys, id: newSysId }, tools), ruleVersion: (ruleData as any).version, details: scores }),
+          body: JSON.stringify({
+            taskId: activeTaskId,
+            systemId: newSysId,
+            scores: calculateScore(mappedSys, tools),
+            ruleVersion: (ruleData as any).version,
+            details: calculateScore(mappedSys, tools),
+          }),
         });
         if (!resScore.ok) {
           const msg = (await resScore.json().catch(() => ({})))?.error || "评分保存失败";
@@ -1091,12 +1128,15 @@ export default function Home() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-sm font-bold text-white">M</div>
             <div className="hidden text-lg font-bold md:block">监控评分协作台</div>
             <div className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">规则版本 {(ruleData as any).version || "v1"}</div>
+            <div className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700">
+              任务：{tasks.find((t) => t.id === activeTaskId)?.name || "未选择"}
+            </div>
           </div>
-            <div className="flex items-center gap-3">
-              <div className="flex rounded-lg bg-slate-100 p-1">
-                {["scoring", "config", "dashboard"].map((tab) => (
-                  <button
-                    key={tab}
+          <div className="flex items-center gap-3">
+            <div className="flex rounded-lg bg-slate-100 p-1">
+              {["scoring", "config", "dashboard"].map((tab) => (
+                <button
+                  key={tab}
                     onClick={() => setView(tab as any)}
                     className={`rounded px-3 py-1.5 text-sm font-medium ${
                       view === tab ? "bg-white text-blue-600 shadow-sm" : "text-slate-600 hover:text-slate-800"
@@ -1105,6 +1145,25 @@ export default function Home() {
                     {tab === "scoring" ? "评分" : tab === "config" ? "配置" : "报表"}
                   </button>
                 ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <select
+                  value={activeTaskId}
+                  onChange={(e) => setActiveTaskId(e.target.value)}
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700"
+                >
+                  {tasks.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => setCreatingTask(true)}
+                  className="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                >
+                  + 新建任务
+                </button>
               </div>
               <button
                 onClick={handleManualSync}
@@ -1141,8 +1200,94 @@ export default function Home() {
           </div>
         </header>
 
-      {saving && (
-        <div className="fixed inset-0 z-40 bg-black/10 backdrop-blur-sm cursor-wait" aria-hidden />
+      {(saving || creatingTask) && (
+        <div className="fixed inset-0 z-40 bg-black/10 backdrop-blur-sm" aria-hidden />
+      )}
+
+      {creatingTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <div className="text-lg font-bold text-slate-800">新建任务</div>
+                <div className="text-xs text-slate-500">可选从历史任务复制配置</div>
+              </div>
+              <button className="text-slate-400 hover:text-slate-600" onClick={() => setCreatingTask(false)}>
+                ✕
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-slate-500">任务名称</label>
+                <input
+                  value={newTaskName}
+                  onChange={(e) => setNewTaskName(e.target.value)}
+                  className="mt-1 w-full rounded border border-slate-200 px-3 py-2 text-sm"
+                  placeholder="例如：2026年一季度"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-slate-500">从历史任务复制（可选）</label>
+                <select
+                  value={cloneFromTaskId || ""}
+                  onChange={(e) => setCloneFromTaskId(e.target.value || null)}
+                  className="mt-1 w-full rounded border border-slate-200 px-3 py-2 text-sm"
+                >
+                  <option value="">不复制，空白任务</option>
+                  {tasks.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  onClick={() => setCreatingTask(false)}
+                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-600 hover:bg-slate-50"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!newTaskName.trim()) {
+                      alert("请输入任务名称");
+                      return;
+                    }
+                    setSaving(true);
+                    try {
+                      const res = await fetch("/api/tasks", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ name: newTaskName.trim(), cloneFrom: cloneFromTaskId || undefined }),
+                      });
+                      const data = await res.json();
+                      if (!res.ok) {
+                        alert(data?.error || "创建任务失败");
+                      } else {
+                        await fetchRemote();
+                        setActiveTaskId(data.id);
+                        setSaveHint("任务创建成功");
+                        setTimeout(() => setSaveHint(""), 1200);
+                      }
+                    } catch (e) {
+                      console.warn("create task error", e);
+                      alert("创建任务失败，请稍后重试");
+                    } finally {
+                      setSaving(false);
+                      setCreatingTask(false);
+                      setNewTaskName("");
+                      setCloneFromTaskId(null);
+                    }
+                  }}
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700"
+                >
+                  创建
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       <main className={`mx-auto max-w-7xl px-4 py-8 ${saving ? "pointer-events-none select-none opacity-90" : ""}`}>

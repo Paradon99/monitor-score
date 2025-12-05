@@ -7,8 +7,8 @@ export async function POST(req: Request) {
   }
   try {
     const body = await req.json();
-    const { systemId, scores, ruleVersion, details } = body;
-    if (!systemId || !scores) return NextResponse.json({ error: "Missing payload" }, { status: 400 });
+    const { systemId, scores, ruleVersion, details, taskId } = body;
+    if (!systemId || !scores || !taskId) return NextResponse.json({ error: "Missing payload" }, { status: 400 });
 
     const { error } = await supabaseService.from("scores").insert({
       system_id: systemId,
@@ -20,6 +20,7 @@ export async function POST(req: Request) {
       part4: scores.part4,
       details: details || scores,
       created_at: new Date().toISOString(),
+      task_id: taskId,
     });
     if (error) throw error;
     return NextResponse.json({ ok: true });

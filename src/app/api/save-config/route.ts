@@ -13,6 +13,8 @@ export async function POST(req: Request) {
     const tools = body.tools || [];
     const checkedScenarioIds: string[] = body.checkedScenarioIds || [];
     const expectedUpdatedAt: string | undefined = body.expectedUpdatedAt;
+    const taskId: string = body.taskId;
+    if (!taskId) return NextResponse.json({ error: "Missing taskId" }, { status: 400 });
     if (!sys?.id) return NextResponse.json({ error: "Missing system id" }, { status: 400 });
 
     const now = new Date().toISOString();
@@ -32,22 +34,23 @@ export async function POST(req: Request) {
         targetSystemId = existingByName.id;
       } else {
         const { data: inserted, error: insertErr } = await supabaseService
-          .from("systems")
-          .insert({
-            name: sys.name,
-            class: sys.tier,
-            is_self_built: sys.isSelfBuilt,
-            server_coverage: sys.serverCoverage,
-            app_coverage: sys.appCoverage,
-            server_total: sys.serverTotal,
-            server_covered: sys.serverCovered,
-            app_total: sys.appTotal,
-            app_covered: sys.appCovered,
-            documented_items: sys.documentedItems,
-            updated_at: now,
-          })
-          .select("id,updated_at")
-          .single();
+        .from("systems")
+        .insert({
+          name: sys.name,
+          class: sys.tier,
+          is_self_built: sys.isSelfBuilt,
+          server_coverage: sys.serverCoverage,
+          app_coverage: sys.appCoverage,
+          server_total: sys.serverTotal,
+          server_covered: sys.serverCovered,
+          app_total: sys.appTotal,
+          app_covered: sys.appCovered,
+          documented_items: sys.documentedItems,
+          updated_at: now,
+          task_id: taskId,
+        })
+        .select("id,updated_at")
+        .single();
         if (insertErr) throw insertErr;
         targetSystemId = inserted.id;
       }
@@ -72,8 +75,10 @@ export async function POST(req: Request) {
           app_covered: sys.appCovered,
           documented_items: sys.documentedItems,
           updated_at: now,
+          task_id: taskId,
         })
-        .eq("id", targetSystemId);
+        .eq("id", targetSystemId)
+        .eq("task_id", taskId);
       if (sysErr) throw sysErr;
     }
 
@@ -82,13 +87,13 @@ export async function POST(req: Request) {
       let dbToolId = t.id;
       if (!isUUID(t.id)) {
         // 尝试按名称匹配已有工具
-        const { data: existingTool } = await supabaseService.from("tools").select("id").eq("name", t.name || "").maybeSingle();
+        const { data: existingTool } = await supabaseService.from("tools").select("id").eq("name", t.name || "").eq("task_id", taskId).maybeSingle();
         if (existingTool?.id) {
           dbToolId = existingTool.id;
         } else {
           const { data, error } = await supabaseService
             .from("tools")
-            .insert({ name: t.name, default_caps: t.defaultCapabilities || [], updated_at: now })
+            .insert({ name: t.name, default_caps: t.defaultCapabilities || [], updated_at: now, task_id: taskId })
             .select("id")
             .single();
           if (error) throw error;
@@ -98,11 +103,11 @@ export async function POST(req: Request) {
       } else {
         const { error } = await supabaseService
           .from("tools")
-          .upsert({ id: dbToolId, name: t.name, default_caps: t.defaultCapabilities || [], updated_at: now });
+          .upsert({ id: dbToolId, name: t.name, default_caps: t.defaultCapabilities || [], updated_at: now, task_id: taskId });
         if (error) throw error;
       }
 
-      await supabaseService.from("tool_scenarios").delete().eq("tool_id", dbToolId);
+      await supabaseService.from("tool_scenarios").delete().eq("tool_id", dbToolId).eq("task_id", taskId);
       if (Array.isArray(t.scenarios) && t.scenarios.length) {
         const scenRows = t.scenarios.map((s: any) => {
           const row: any = {
@@ -111,6 +116,7 @@ export async function POST(req: Request) {
             metric: s.metric,
             threshold: s.threshold || "",
             level: s.level || "gray",
+            task_id: taskId,
           };
           if (isUUID(s.id)) row.id = s.id;
           return row;
@@ -136,8 +142,8 @@ export async function POST(req: Request) {
     }
 
     // 3) 清理旧关联
-    await supabaseService.from("system_tools").delete().eq("system_id", targetSystemId);
-    await supabaseService.from("system_scenarios").delete().eq("system_id", targetSystemId);
+    await supabaseService.from("system_tools").delete().eq("system_id", targetSystemId).eq("task_id", taskId);
+    await supabaseService.from("system_scenarios").delete().eq("system_id", targetSystemId).eq("task_id", taskId);
 
     // 4) 写入 system_tools（映射后的 UUID）
     const safeToolIds = (sys.selectedToolIds || [])
@@ -148,6 +154,7 @@ export async function POST(req: Request) {
         system_id: targetSystemId,
         tool_id: tid,
         caps_selected: sys.toolCapabilities?.[tid] || sys.toolCapabilities?.[Object.keys(toolIdMap).find((k) => toolIdMap[k] === tid) || ""] || [],
+        task_id: taskId,
       }));
       const { error } = await supabaseService.from("system_tools").insert(rows);
       if (error) throw error;
@@ -163,6 +170,7 @@ export async function POST(req: Request) {
         system_id: targetSystemId,
         scenario_id: sid,
         checked: true,
+        task_id: taskId,
       }));
       const { error } = await supabaseService.from("system_scenarios").insert(rows);
       if (error) throw error;
