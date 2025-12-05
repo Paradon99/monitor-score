@@ -1109,11 +1109,11 @@ export default function Home() {
               <button
                 onClick={handleManualSync}
                 disabled={syncing}
-                className={`rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium ${
-                  syncing ? "text-slate-400" : "text-slate-700 hover:bg-slate-50"
+                className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition ${
+                  syncing ? "bg-amber-300 cursor-wait" : "bg-amber-500 hover:bg-amber-600"
                 }`}
               >
-                {syncing || loadingRemote ? "同步中..." : "同步数据"}
+                {syncing || loadingRemote ? "同步中..." : "⇅ 同步数据"}
               </button>
               <button
                 onClick={handleSaveClick}
