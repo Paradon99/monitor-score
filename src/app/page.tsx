@@ -752,6 +752,10 @@ export default function Home() {
     () => systems.find((s) => s.id === activeSystemId) || systems[0],
     [systems, activeSystemId]
   );
+  const sortedSystems = useMemo(
+    () => [...systems].sort((a, b) => a.name.localeCompare(b.name, "zh-CN")),
+    [systems]
+  );
   const scores = useMemo(() => calculateScore(activeSystem, tools), [activeSystem, tools]);
   const activeTool = useMemo(() => tools.find((t) => t.id === activeToolId) || tools[0], [tools, activeToolId]);
 
@@ -1427,8 +1431,8 @@ export default function Home() {
                   + 新增
                 </button>
               </div>
-              <div className="max-h-[80vh] space-y-2 overflow-y-auto">
-                {systems.map((sys) => (
+              <div className="space-y-2">
+                {sortedSystems.map((sys) => (
                   <div
                     key={sys.id}
                     onClick={() => setActiveSystemId(sys.id)}
