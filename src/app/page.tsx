@@ -12,6 +12,7 @@ import { supabase } from "../../lib/supabaseClient";
 type MonitorLevel = "red" | "orange" | "yellow" | "gray";
 type MonitorCategory = "host" | "process" | "network" | "db" | "trans" | "link" | "data" | "client";
 type Task = { id: string; name: string; description?: string };
+type Task = { id: string; name: string; description?: string };
 
 interface Scenario {
   id: string;
@@ -257,6 +258,9 @@ const INITIAL_SYSTEMS: SystemData[] =
 const SYSTEM_STORAGE_KEY = "monitor_systems_v8";
 const TOOL_STORAGE_KEY = "monitor_tools_v8";
 const TASK_STORAGE_KEY = "monitor_tasks_active";
+const DEFAULT_TASK_ID = "00000000-0000-0000-0000-000000000000";
+const isUUID = (v: string) =>
+  /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/.test(v);
 
 const ruleById = (id: string) =>
   ((ruleData as any).dimensions as any[])
@@ -625,8 +629,8 @@ export default function Home() {
   const [systems, setSystems] = useState<SystemData[]>(initialSystems.length ? initialSystems : [createDefaultSystem()]);
   const [activeSystemId, setActiveSystemId] = useState<string>(initialSystems[0]?.id || "sys_default");
   const [tools, setTools] = useState<MonitorTool[]>(mergeStandardIndicators(DEFAULT_TOOLS));
-  const [tasks, setTasks] = useState<Task[]>([{ id: "default_task", name: "默认任务" }]);
-  const [activeTaskId, setActiveTaskId] = useState<string>("default_task");
+  const [tasks, setTasks] = useState<Task[]>([{ id: DEFAULT_TASK_ID, name: "默认任务" }]);
+  const [activeTaskId, setActiveTaskId] = useState<string>(DEFAULT_TASK_ID);
   const [view, setView] = useState<"dashboard" | "scoring" | "config">("scoring");
   const [saveHint, setSaveHint] = useState<string>("");
   const [loadingRemote, setLoadingRemote] = useState<boolean>(false);
@@ -654,7 +658,7 @@ export default function Home() {
       const savedSys = localStorage.getItem(SYSTEM_STORAGE_KEY);
       const savedTools = localStorage.getItem(TOOL_STORAGE_KEY);
       const savedTask = localStorage.getItem(TASK_STORAGE_KEY);
-      if (savedTask) setActiveTaskId(savedTask);
+      if (savedTask) setActiveTaskId(isUUID(savedTask) ? savedTask : DEFAULT_TASK_ID);
       if (savedSys || savedTools) setHasLocalData(true);
       if (savedSys) {
         const parsed = JSON.parse(savedSys);
@@ -768,6 +772,12 @@ export default function Home() {
   useEffect(() => {
     fetchRemote();
   }, [fetchRemote, activeTaskId]);
+
+  useEffect(() => {
+    if (!isUUID(activeTaskId)) {
+      setActiveTaskId(DEFAULT_TASK_ID);
+    }
+  }, [activeTaskId]);
 
   useEffect(() => {
     if (!activeToolId && tools.length) setActiveToolId(tools[0].id);
