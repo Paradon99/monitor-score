@@ -761,6 +761,15 @@ export default function Home() {
       return a.name.localeCompare(b.name, "zh-CN");
     });
   }, [systems]);
+  const levelWeight: Record<MonitorLevel, number> = { red: 1, orange: 2, yellow: 3, gray: 4 };
+  const sortedToolsForAccess = useMemo(
+    () =>
+      [...tools].sort(
+        (a, b) =>
+          (b.scenarios?.length || 0) - (a.scenarios?.length || 0) || a.name.localeCompare(b.name, "zh-CN")
+      ),
+    [tools]
+  );
   const scores = useMemo(() => calculateScore(activeSystem, tools), [activeSystem, tools]);
   const activeTool = useMemo(() => tools.find((t) => t.id === activeToolId) || tools[0], [tools, activeToolId]);
 
@@ -1505,7 +1514,7 @@ export default function Home() {
                   <div className="space-y-4" ref={leftColRef}>
                     <h4 className="mb-3 text-sm font-bold text-slate-500">1.1 监控工具接入</h4>
                     <div className="mb-4 space-y-2">
-                      {tools.map((t) => {
+                      {sortedToolsForAccess.map((t) => {
                         const selected = activeSystem.selectedToolIds.includes(t.id);
                         return (
                           <div
@@ -1640,14 +1649,26 @@ export default function Home() {
                         {activeSystem.selectedToolIds.length === 0 && (
                           <div className="p-4 text-sm text-slate-400">请先在左侧选择接入的工具</div>
                         )}
-                        {activeSystem.selectedToolIds.map((tid) => {
-                          const tool = tools.find((t) => t.id === tid);
-                          if (!tool) return null;
-                          const caps = activeSystem.toolCapabilities[tid] || [];
-                          const scens = tool.scenarios.filter((s) => caps.includes(s.category));
-                          if (scens.length === 0) return null;
+                        {activeSystem.selectedToolIds
+                          .map((tid) => tools.find((t) => t.id === tid))
+                          .filter((t): t is MonitorTool => Boolean(t))
+                          .sort(
+                            (a, b) =>
+                              (b.scenarios?.length || 0) - (a.scenarios?.length || 0) ||
+                              a.name.localeCompare(b.name, "zh-CN")
+                          )
+                          .map((tool) => {
+                            const caps = activeSystem.toolCapabilities[tool.id] || [];
+                            const scens = (tool.scenarios || [])
+                              .filter((s) => caps.includes(s.category))
+                              .slice()
+                              .sort(
+                                (a, b) =>
+                                  a.metric.localeCompare(b.metric, "zh-CN") || levelWeight[a.level] - levelWeight[b.level]
+                              );
+                            if (scens.length === 0) return null;
                           return (
-                            <div key={tid} className="border-b border-slate-100">
+                            <div key={tool.id} className="border-b border-slate-100">
                               <div className="flex items-center justify-between bg-slate-50 px-4 py-2">
                                 <div className="text-sm font-semibold text-slate-700">{tool.name}</div>
                                 <div className="text-xs text-slate-500">已启用能力：{caps.map((c) => CATEGORY_LABELS[c]).join("、")}</div>
