@@ -653,6 +653,53 @@ export default function Home() {
   const [cloneFromTaskId, setCloneFromTaskId] = useState<string | null>(null);
   const [dirtySystems, setDirtySystems] = useState<Set<string>>(new Set());
   const [progressText, setProgressText] = useState<string>("");
+  const renameTask = async (id: string) => {
+    const task = tasks.find((t) => t.id === id);
+    const nextName = window.prompt("输入新的任务名称", task?.name || "");
+    if (!nextName) return;
+    try {
+      const res = await fetch(`/api/tasks/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: nextName }),
+      });
+      if (!res.ok) {
+        const msg = (await res.json().catch(() => ({})))?.error || "重命名失败";
+        alert(msg);
+        return;
+      }
+      await fetchRemote();
+      setSaveHint("任务已重命名");
+      setTimeout(() => setSaveHint(""), 1200);
+    } catch (e) {
+      console.warn("rename task error", e);
+      alert("重命名失败，请稍后重试");
+    }
+  };
+
+  const deleteTask = async (id: string) => {
+    const task = tasks.find((t) => t.id === id);
+    if (!task) return;
+    if (!window.confirm(`确认删除任务「${task.name}」？该操作会删除该任务下的系统与评分。`)) return;
+    try {
+      const res = await fetch(`/api/tasks/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const msg = (await res.json().catch(() => ({})))?.error || "删除任务失败";
+        alert(msg);
+        return;
+      }
+      const remaining = tasks.filter((t) => t.id !== id);
+      setTasks(remaining.length ? remaining : [{ id: DEFAULT_TASK_ID, name: "默认任务" }]);
+      const nextId = remaining[0]?.id || DEFAULT_TASK_ID;
+      setActiveTaskId(nextId);
+      await fetchRemote();
+      setSaveHint("任务已删除");
+      setTimeout(() => setSaveHint(""), 1200);
+    } catch (e) {
+      console.warn("delete task error", e);
+      alert("删除任务失败，请稍后重试");
+    }
+  };
 
   useEffect(() => {
     try {
@@ -1171,10 +1218,11 @@ export default function Home() {
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
           <div className="flex items-center gap-3">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-600 text-sm font-bold text-white">M</div>
-            <div className="hidden text-lg font-bold md:block">监控评分协作台</div>
-            <div className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-600">规则版本 {(ruleData as any).version || "v1"}</div>
-            <div className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700">
-              任务：{tasks.find((t) => t.id === activeTaskId)?.name || "未选择"}
+            <div className="hidden text-lg font-bold md:block flex items-center gap-2">
+              <span>监控评分协作台</span>
+              <span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-700">
+                {tasks.find((t) => t.id === activeTaskId)?.name || "未选择任务"}
+              </span>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -1182,66 +1230,38 @@ export default function Home() {
               {["scoring", "config", "dashboard"].map((tab) => (
                 <button
                   key={tab}
-                    onClick={() => setView(tab as any)}
-                    className={`rounded px-3 py-1.5 text-sm font-medium ${
-                      view === tab ? "bg-white text-blue-600 shadow-sm" : "text-slate-600 hover:text-slate-800"
-                    }`}
-                  >
-                    {tab === "scoring" ? "评分" : tab === "config" ? "配置" : "报表"}
-                  </button>
-                ))}
-              </div>
-              <div className="flex items-center gap-2">
-                <select
-                  value={activeTaskId}
-                  onChange={(e) => setActiveTaskId(e.target.value)}
-                  className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700"
+                  onClick={() => setView(tab as any)}
+                  className={`rounded px-3 py-1.5 text-sm font-medium ${
+                    view === tab ? "bg-white text-blue-600 shadow-sm" : "text-slate-600 hover:text-slate-800"
+                  }`}
                 >
-                  {tasks.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  onClick={() => setCreatingTask(true)}
-                  className="rounded-lg border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
-                >
-                  + 新建任务
+                  {tab === "scoring" ? "评分" : tab === "config" ? "配置" : "报表"}
                 </button>
-              </div>
-              <button
-                onClick={handleManualSync}
-                disabled={syncing || saving}
-                className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition ${
-                  syncing ? "bg-amber-300 cursor-wait" : "bg-amber-500 hover:bg-amber-600"
-                }`}
-              >
-                {syncing || loadingRemote ? "同步中..." : "⇅ 同步数据"}
-              </button>
-              <button
-                onClick={() => saveSystemsBatch([activeSystemId])}
-                disabled={saving}
-                className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition ${
-                  saving ? "bg-blue-300 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
-                }`}
-              >
-                {saving ? "保存中..." : "☁️ 提交当前"}
-              </button>
-              <button
-                onClick={() => saveSystemsBatch(Array.from(dirtySystems.size ? dirtySystems : new Set(systems.map((s) => s.id))))}
-                disabled={saving}
-                className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition ${
-                  saving ? "bg-green-300 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"
-                }`}
-              >
-                {saving ? "保存中..." : `☁️ 提交全部${dirtySystems.size ? `(${dirtySystems.size})` : ""}`}
-              </button>
-              <button
-                onClick={handleExport}
-                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
-              >
-                导出配置
+              ))}
+            </div>
+            <button
+              onClick={handleManualSync}
+              disabled={syncing || saving}
+              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition ${
+                syncing ? "bg-amber-300 cursor-wait" : "bg-amber-500 hover:bg-amber-600"
+              }`}
+            >
+              {syncing || loadingRemote ? "同步中..." : "⇅ 同步数据"}
+            </button>
+            <button
+              onClick={() => saveSystemsBatch(Array.from(dirtySystems.size ? dirtySystems : new Set(systems.map((s) => s.id))))}
+              disabled={saving}
+              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition ${
+                saving ? "bg-blue-300 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
+              }`}
+            >
+              {saving ? "保存中..." : `☁️ 提交改动${dirtySystems.size ? `(${dirtySystems.size})` : ""}`}
+            </button>
+            <button
+              onClick={handleExport}
+              className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            >
+              导出配置
               </button>
               <button
                 onClick={handleImportClick}
@@ -1345,6 +1365,38 @@ export default function Home() {
       <main className={`mx-auto max-w-7xl px-4 py-8 ${saving ? "pointer-events-none select-none opacity-90" : ""}`}>
         {view === "config" && (
           <div className="space-y-4">
+            <Card className="p-4 flex flex-wrap items-center gap-3">
+              <div className="text-sm font-bold text-slate-700">任务管理</div>
+              <select
+                value={activeTaskId}
+                onChange={(e) => setActiveTaskId(e.target.value)}
+                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700"
+              >
+                {tasks.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                onClick={() => setCreatingTask(true)}
+                className="rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50"
+              >
+                + 新建任务
+              </button>
+              <button
+                onClick={() => renameTask(activeTaskId)}
+                className="rounded-lg border border-slate-200 px-3 py-2 text-xs text-slate-600 hover:bg-slate-50"
+              >
+                重命名
+              </button>
+              <button
+                onClick={() => deleteTask(activeTaskId)}
+                className="rounded-lg border border-red-200 px-3 py-2 text-xs text-red-600 hover:bg-red-50"
+              >
+                删除任务
+              </button>
+            </Card>
             <div className="flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-bold text-slate-800">工具与指标配置</h2>
@@ -1563,15 +1615,6 @@ export default function Home() {
 
         {view === "dashboard" && (
           <div className="space-y-6">
-            <Card className="p-6">
-              <div className="mb-4 flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-bold text-slate-800">规则版本</h3>
-                  <p className="text-sm text-slate-500">当前使用 {(ruleData as any).version || "v1"} 规则计算得分</p>
-                </div>
-                <div className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">v{(ruleData as any).version || "1"}</div>
-              </div>
-            </Card>
             <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
               {systems.map((sys) => {
                 const s = calculateScore(sys, tools);
