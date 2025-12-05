@@ -109,33 +109,25 @@ export async function POST(req: Request) {
 
       await supabaseService.from("tool_scenarios").delete().eq("tool_id", dbToolId).eq("task_id", taskId);
       if (Array.isArray(t.scenarios) && t.scenarios.length) {
-        const scenRows = t.scenarios.map((s: any) => {
-          const row: any = {
-            tool_id: dbToolId,
-            category: s.category,
-            metric: s.metric,
-            threshold: s.threshold || "",
-            level: s.level || "gray",
-            task_id: taskId,
-          };
-          if (isUUID(s.id)) row.id = s.id;
-          return row;
-        });
+        const scenRows = t.scenarios.map((s: any) => ({
+          tool_id: dbToolId,
+          category: s.category,
+          metric: s.metric,
+          threshold: s.threshold || "",
+          level: s.level || "gray",
+          task_id: taskId,
+        }));
         const { data: insertedScen, error: scenErr } = await supabaseService
           .from("tool_scenarios")
           .insert(scenRows)
           .select("id,metric");
         if (scenErr) throw scenErr;
 
-        // 记录映射：已存在 uuid 保持不变；新插入按顺序映射非 uuid 输入
-        let newIdx = 0;
-        t.scenarios.forEach((s: any) => {
-          if (isUUID(s.id)) {
-            scenarioIdMap[s.id] = s.id;
-          } else {
-            const generated = insertedScen?.[newIdx]?.id;
-            if (generated) scenarioIdMap[s.id] = generated;
-            newIdx += 1;
+        // 记录映射：按输入顺序映射新生成的 id
+        t.scenarios.forEach((s: any, idx: number) => {
+          const generated = insertedScen?.[idx]?.id;
+          if (generated) {
+            scenarioIdMap[s.id] = generated;
           }
         });
       }
