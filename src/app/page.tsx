@@ -693,17 +693,16 @@ export default function Home() {
 
   const fetchRemote = useCallback(async () => {
     if (!supabase) return;
-    if (!activeTaskId) return;
     setLoadingRemote(true);
     try {
       const { data: toolsData, error: toolsErr } = await supabase
         .from("tools")
         .select("id,name,default_caps,tool_scenarios(id,category,metric,threshold,level),updated_at,task_id")
-        .eq("task_id", activeTaskId);
+        .order("updated_at", { ascending: false });
       const { data: systemsData, error: sysErr } = await supabase
         .from("systems")
         .select("id,name,class,updated_at,task_id,system_tools(tool_id,caps_selected),system_scenarios(scenario_id)")
-        .eq("task_id", activeTaskId);
+        .eq("task_id", activeTaskId || DEFAULT_TASK_ID);
       const { data: tasksData } = await supabase.from("tasks").select("id,name,description");
       if (toolsErr || sysErr) {
         console.warn("Supabase fetch failed", toolsErr || sysErr);
@@ -714,20 +713,72 @@ export default function Home() {
         if (!tasksData.find((t) => t.id === activeTaskId)) {
           setActiveTaskId(tasksData[0].id);
         }
-      } else if (!tasksData?.length) {
-        // 若 tasks 表为空但工具/系统存在，自动用其 task_id 构造任务列表
-        const candidateIds = new Set<string>();
-        (toolsData || []).forEach((t: any) => t.task_id && candidateIds.add(t.task_id));
-        (systemsData || []).forEach((s: any) => s.task_id && candidateIds.add(s.task_id));
-        const derived = Array.from(candidateIds).map((id) => ({ id, name: `任务 ${id.slice(0, 8)}` }));
-        if (derived.length) {
-          setTasks(derived);
-          setActiveTaskId(derived[0].id);
+      }
+
+      // 如果当前任务下无数据，尝试全量扫描找可用 task_id
+      const noDataForTask = (!systemsData || systemsData.length === 0);
+      if (noDataForTask) {
+        const { data: allTools } = await supabase.from("tools").select("id,name,default_caps,tool_scenarios(id,category,metric,threshold,level),task_id");
+        const { data: allSystems } = await supabase
+          .from("systems")
+          .select("id,name,class,updated_at,task_id,system_tools(tool_id,caps_selected),system_scenarios(scenario_id)");
+        const ids = new Set<string>();
+        (allTools || []).forEach((t: any) => t.task_id && ids.add(t.task_id));
+        (allSystems || []).forEach((s: any) => s.task_id && ids.add(s.task_id));
+        const derivedTasks = Array.from(ids).map((id) => ({ id, name: `任务 ${id.slice(0, 8)}` }));
+        if (derivedTasks.length) {
+          setTasks(derivedTasks);
+          setActiveTaskId(derivedTasks[0].id);
+          // 直接采用全量数据中匹配该任务的工具/系统
+          const useTools = (allTools || []);
+          const useSystems = (allSystems || []).filter((s: any) => s.task_id === derivedTasks[0].id);
+          if (useTools.length) {
+            setTools(
+              useTools.map((t: any) => ({
+                id: t.id,
+                name: t.name,
+                defaultCapabilities: normalizeCaps(t.default_caps || []),
+                scenarios: (t.tool_scenarios || []).map((s: any) => ({
+                  id: s.id,
+                  category: s.category as MonitorCategory,
+                  metric: s.metric,
+                  threshold: s.threshold,
+                  level: (s.level as MonitorLevel) || "gray",
+                })),
+              }))
+            );
+          }
+          if (useSystems.length) {
+            const mappedSystems: SystemData[] = useSystems.map((s: any) => {
+              const selectedToolIds = (s.system_tools || []).map((st: any) => st.tool_id);
+              const toolCapabilities: Record<string, MonitorCategory[]> = {};
+              (s.system_tools || []).forEach((st: any) => {
+                toolCapabilities[st.tool_id] = normalizeCaps(st.caps_selected || []);
+              });
+              const checkedScenarioIds = (s.system_scenarios || []).map((sc: any) => sc.scenario_id);
+              return {
+                ...createDefaultSystem(),
+                id: s.id,
+                name: s.name,
+                tier: s.class || "A",
+                updatedAt: s.updated_at || undefined,
+                selectedToolIds,
+                toolCapabilities,
+                checkedScenarioIds,
+              };
+            });
+            setSystems(mappedSystems);
+            setActiveSystemId(mappedSystems[0].id);
+          }
         }
       }
 
       if (toolsData) {
-        const mappedTools: MonitorTool[] = toolsData.map((t: any) => ({
+        const dedup = new Map<string, any>();
+        toolsData.forEach((t: any) => {
+          if (!dedup.has(t.name)) dedup.set(t.name, t);
+        });
+        const mappedTools: MonitorTool[] = Array.from(dedup.values()).map((t: any) => ({
           id: t.id,
           name: t.name,
           defaultCapabilities: normalizeCaps(t.default_caps || []),
@@ -739,12 +790,7 @@ export default function Home() {
             level: (s.level as MonitorLevel) || "gray",
           })),
         }));
-        if (mappedTools.length) {
-          setTools(mappedTools);
-        } else if (activeTaskId === DEFAULT_TASK_ID) {
-          // 当前任务没有工具时，使用默认内置工具作为兜底
-          setTools(mergeStandardIndicators(DEFAULT_TOOLS));
-        }
+        setTools(mappedTools.length ? mappedTools : mergeStandardIndicators(DEFAULT_TOOLS));
       }
       if (systemsData && systemsData.length) {
         const mappedSystems: SystemData[] = systemsData.map((s: any) => {
