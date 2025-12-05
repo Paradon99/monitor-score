@@ -1464,18 +1464,35 @@ export default function Home() {
                 {sortedSystems.map((sys) => (
                   <div
                     key={sys.id}
-                    onClick={() => setActiveSystemId(sys.id)}
-                    className={`cursor-pointer rounded border p-3 transition-all ${
+                    className={`group relative overflow-hidden rounded border p-3 transition-all ${
                       activeSystemId === sys.id
                         ? "border-blue-500 bg-white shadow-md ring-1 ring-blue-500"
                         : "border-transparent bg-white hover:border-slate-300"
                     }`}
                   >
-                    <div className="font-bold text-slate-800">{sys.name}</div>
-                    <div className="mt-1 flex justify-between text-xs text-slate-500">
-                      <span>{sys.tier}类系统</span>
-                      <span className="font-mono">{calculateScore(sys, tools).total} 分</span>
-                    </div>
+                    <button
+                      onClick={() => setActiveSystemId(sys.id)}
+                      className="block w-full text-left"
+                    >
+                      <div className="font-bold text-slate-800">{sys.name}</div>
+                      <div className="mt-1 flex justify-between text-xs text-slate-500">
+                        <span>{sys.tier}类系统</span>
+                        <span className="font-mono">{calculateScore(sys, tools).total} 分</span>
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (sortedSystems.length <= 1) {
+                          alert("至少保留一个系统");
+                          return;
+                        }
+                        const confirmDelete = window.confirm(`确认删除系统「${sys.name}」？该操作不可撤销。`);
+                        if (confirmDelete) deleteSystem(sys.id, sys.name);
+                      }}
+                      className="absolute right-2 top-2 rounded-full border border-slate-200 bg-white px-2 py-1 text-[11px] text-slate-500 opacity-0 shadow-sm transition group-hover:opacity-100 hover:text-red-600 hover:border-red-200"
+                    >
+                      🗑 删除
+                    </button>
                   </div>
                 ))}
               </div>
