@@ -87,13 +87,13 @@ export async function POST(req: Request) {
       let dbToolId = t.id;
       if (!isUUID(t.id)) {
         // 尝试按名称匹配已有工具
-        const { data: existingTool } = await supabaseService.from("tools").select("id").eq("name", t.name || "").eq("task_id", taskId).maybeSingle();
+        const { data: existingTool } = await supabaseService.from("tools").select("id").eq("name", t.name || "").maybeSingle();
         if (existingTool?.id) {
           dbToolId = existingTool.id;
         } else {
           const { data, error } = await supabaseService
             .from("tools")
-            .insert({ name: t.name, default_caps: t.defaultCapabilities || [], updated_at: now, task_id: taskId })
+            .insert({ name: t.name, default_caps: t.defaultCapabilities || [], updated_at: now })
             .select("id")
             .single();
           if (error) throw error;
@@ -103,11 +103,11 @@ export async function POST(req: Request) {
       } else {
         const { error } = await supabaseService
           .from("tools")
-          .upsert({ id: dbToolId, name: t.name, default_caps: t.defaultCapabilities || [], updated_at: now, task_id: taskId });
+          .upsert({ id: dbToolId, name: t.name, default_caps: t.defaultCapabilities || [], updated_at: now });
         if (error) throw error;
       }
 
-      await supabaseService.from("tool_scenarios").delete().eq("tool_id", dbToolId).eq("task_id", taskId);
+      await supabaseService.from("tool_scenarios").delete().eq("tool_id", dbToolId);
       if (Array.isArray(t.scenarios) && t.scenarios.length) {
         const scenRows = t.scenarios.map((s: any) => ({
           tool_id: dbToolId,
@@ -115,7 +115,6 @@ export async function POST(req: Request) {
           metric: s.metric,
           threshold: s.threshold || "",
           level: s.level || "gray",
-          task_id: taskId,
         }));
         const { data: insertedScen, error: scenErr } = await supabaseService
           .from("tool_scenarios")
