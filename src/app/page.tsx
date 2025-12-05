@@ -651,6 +651,8 @@ export default function Home() {
   const [creatingTask, setCreatingTask] = useState<boolean>(false);
   const [newTaskName, setNewTaskName] = useState<string>("");
   const [cloneFromTaskId, setCloneFromTaskId] = useState<string | null>(null);
+  const [dirtySystems, setDirtySystems] = useState<Set<string>>(new Set());
+  const [progressText, setProgressText] = useState<string>("");
 
   useEffect(() => {
     try {
@@ -757,10 +759,6 @@ export default function Home() {
         });
         setSystems(mappedSystems);
         setActiveSystemId((prev) => mappedSystems.find((m) => m.id === prev)?.id || mappedSystems[0].id);
-      } else if (activeTaskId === DEFAULT_TASK_ID) {
-        // 默认任务无数据时使用内置种子
-        setSystems(initialSystems.length ? initialSystems : [createDefaultSystem()]);
-        setTools(mergeStandardIndicators(DEFAULT_TOOLS));
       }
     } catch (e) {
       console.warn("Supabase fetch error", e);
@@ -773,6 +771,7 @@ export default function Home() {
     setSyncing(true);
     await fetchRemote();
     setSyncing(false);
+    setDirtySystems(new Set());
     setSaveHint("已从数据库同步");
     setTimeout(() => setSaveHint(""), 1200);
   };
@@ -808,10 +807,18 @@ export default function Home() {
     () =>
       [...tools].sort(
         (a, b) =>
-          (b.scenarios?.length || 0) - (a.scenarios?.length || 0) || a.name.localeCompare(b.name, "zh-CN")
+        (b.scenarios?.length || 0) - (a.scenarios?.length || 0) || a.name.localeCompare(b.name, "zh-CN")
       ),
     [tools]
   );
+  const markDirty = (id: string) => {
+    setDirtySystems((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  };
+  const markAllSystemsDirty = () => setDirtySystems(new Set(systems.map((s) => s.id)));
   const scores = useMemo(() => calculateScore(activeSystem, tools), [activeSystem, tools]);
   const activeTool = useMemo(() => tools.find((t) => t.id === activeToolId) || tools[0], [tools, activeToolId]);
 
@@ -829,6 +836,7 @@ export default function Home() {
 
   const updateSystem = (updates: Partial<SystemData>) => {
     setSystems((prev) => prev.map((s) => (s.id === activeSystemId ? { ...s, ...updates } : s)));
+    markDirty(activeSystemId);
   };
 
   const toggleTool = (toolId: string) => {
@@ -851,6 +859,7 @@ export default function Home() {
         };
       })
     );
+    markDirty(activeSystemId);
   };
 
   const toggleToolCapability = (toolId: string, cap: MonitorCategory) => {
@@ -862,6 +871,7 @@ export default function Home() {
         return { ...s, toolCapabilities: { ...s.toolCapabilities, [toolId]: newCaps } };
       })
     );
+    markDirty(activeSystemId);
   };
 
   const toggleScenario = (id: string) => {
@@ -872,6 +882,7 @@ export default function Home() {
         return { ...s, checkedScenarioIds: current.includes(id) ? current.filter((i) => i !== id) : [...current, id] };
       })
     );
+    markDirty(activeSystemId);
   };
 
   // 配置页：工具与指标编辑
@@ -880,6 +891,7 @@ export default function Home() {
     const newTool: MonitorTool = { id: newId, name: `新工具 ${tools.length + 1}`, defaultCapabilities: [], scenarios: [] };
     setTools((prev) => [...prev, newTool]);
     setActiveToolId(newId);
+    markAllSystemsDirty();
   };
 
   const deleteTool = (id: string) => {
@@ -892,6 +904,7 @@ export default function Home() {
       }))
     );
     if (activeToolId === id) setActiveToolId(null);
+    markAllSystemsDirty();
     // 同步删除到数据库（id 或 name 均可）
     fetch("/api/delete-tool", {
       method: "POST",
@@ -902,6 +915,7 @@ export default function Home() {
 
   const updateTool = (id: string, patch: Partial<MonitorTool>) => {
     setTools((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+    markAllSystemsDirty();
   };
 
   const toggleDefaultCapConfig = (id: string, cap: MonitorCategory) => {
@@ -923,6 +937,7 @@ export default function Home() {
       level: newScenario.level,
     };
     updateTool(activeTool.id, { scenarios: [...(activeTool.scenarios || []), scen] });
+    markAllSystemsDirty();
     setNewScenario({ ...newScenario, metric: "", threshold: "" });
   };
 
@@ -934,17 +949,20 @@ export default function Home() {
         scenarios: (activeTool.scenarios || []).map((s) => (s.id === sid ? { ...s, ...patch } : s)),
       }
     );
+    markAllSystemsDirty();
   };
 
   const deleteScenarioInline = (sid: string) => {
     if (!activeTool) return;
     updateTool(activeTool.id, { scenarios: (activeTool.scenarios || []).filter((s) => s.id !== sid) });
+    markAllSystemsDirty();
   };
 
   const addNewSystem = () => {
     const newId = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `sys_${Date.now()}`;
     setSystems((prev) => [...prev, { ...(INITIAL_SYSTEMS[0] || createDefaultSystem()), id: newId, name: `新系统 ${newId.slice(-4)}` }]);
     setActiveSystemId(newId);
+    markDirty(newId);
   };
 
   const deleteSystem = (id: string, name?: string) => {
@@ -959,6 +977,11 @@ export default function Home() {
       setActiveSystemId(nextActive);
       return filtered;
     });
+    setDirtySystems((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
 
     // 同步删除 Supabase
     fetch("/api/delete-system", {
@@ -971,22 +994,27 @@ export default function Home() {
     });
   };
 
-  const handleSaveClick = async () => {
-    if (!activeTaskId) {
-      setConflictMsg("请先选择任务");
+  const saveSystemsBatch = async (targetIds: string[]) => {
+    if (!activeTaskId || targetIds.length === 0) {
+      setConflictMsg(targetIds.length === 0 ? "没有改动需要提交" : "请先选择任务");
       return;
     }
     setConflictMsg("");
     setSaving(true);
     let updatedSystems = [...systems];
+    let updatedTools = [...tools];
     let toolIdMap: Record<string, string> = {};
     let scenarioIdMap: Record<string, string> = {};
+    const savedIds: string[] = [];
 
     try {
-      for (const sys of systems) {
+      for (let i = 0; i < targetIds.length; i++) {
+        setProgressText(`保存中 ${i + 1}/${targetIds.length}`);
+        const sys = updatedSystems.find((s) => s.id === targetIds[i]);
+        if (!sys) continue;
         const payload = {
           system: sys,
-          tools,
+          tools: updatedTools,
           checkedScenarioIds: sys.checkedScenarioIds,
           expectedUpdatedAt: sys.updatedAt,
           taskId: activeTaskId,
@@ -1000,74 +1028,76 @@ export default function Home() {
           const msg = (await resCfg.json().catch(() => ({})))?.error || "保存冲突：数据已被他人更新，请刷新后再试。";
           setConflictMsg(msg);
           setSaving(false);
+          setProgressText("");
           return;
         }
         if (!resCfg.ok) {
           const msg = (await resCfg.json().catch(() => ({})))?.error || "保存失败";
           setConflictMsg(msg);
           setSaving(false);
+          setProgressText("");
           return;
         }
         const data = await resCfg.json().catch(() => ({}));
-        const newSysId = data.systemId || sys.id;
-        const updatedAt = data.updatedAt;
         toolIdMap = { ...toolIdMap, ...(data.toolIdMap || {}) };
         scenarioIdMap = { ...scenarioIdMap, ...(data.scenarioIdMap || {}) };
-
+        const newSysId = data.systemId || sys.id;
         const mappedSys = {
           ...sys,
           id: newSysId,
-          updatedAt: updatedAt || sys.updatedAt,
+          updatedAt: data.updatedAt || sys.updatedAt,
           selectedToolIds: sys.selectedToolIds.map((tid) => data.toolIdMap?.[tid] || tid),
           toolCapabilities: Object.fromEntries(
             Object.entries(sys.toolCapabilities || {}).map(([tid, caps]) => [data.toolIdMap?.[tid] || tid, caps as any])
           ),
           checkedScenarioIds: sys.checkedScenarioIds.map((sid) => data.scenarioIdMap?.[sid] || sid),
         };
-
         updatedSystems = updatedSystems.map((s) => (s.id === sys.id ? mappedSys : s));
 
-        // 保存评分
         const resScore = await fetch("/api/save-score", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             taskId: activeTaskId,
             systemId: newSysId,
-            scores: calculateScore(mappedSys, tools),
+            scores: calculateScore(mappedSys, updatedTools),
             ruleVersion: (ruleData as any).version,
-            details: calculateScore(mappedSys, tools),
+            details: calculateScore(mappedSys, updatedTools),
           }),
         });
         if (!resScore.ok) {
           const msg = (await resScore.json().catch(() => ({})))?.error || "评分保存失败";
           setConflictMsg(msg);
           setSaving(false);
+          setProgressText("");
           return;
         }
+        savedIds.push(newSysId);
       }
 
       if (Object.keys(toolIdMap).length || Object.keys(scenarioIdMap).length) {
-        setTools((prev) =>
-          prev.map((t) => {
-            const newId = toolIdMap[t.id] || t.id;
-            return {
-              ...t,
-              id: newId,
-              scenarios: (t.scenarios || []).map((s) => ({
-                ...s,
-                id: scenarioIdMap[s.id] || s.id,
-              })),
-            };
-          })
-        );
+        updatedTools = updatedTools.map((t) => {
+          const newId = toolIdMap[t.id] || t.id;
+          return {
+            ...t,
+            id: newId,
+            scenarios: (t.scenarios || []).map((s) => ({
+              ...s,
+              id: scenarioIdMap[s.id] || s.id,
+            })),
+          };
+        });
       }
 
+      setTools(updatedTools);
       setSystems(updatedSystems);
-      const newActiveId = updatedSystems.find((s) => s.name === activeSystem.name)?.id || updatedSystems[0].id;
-      setActiveSystemId(newActiveId);
+      setDirtySystems((prev) => {
+        const next = new Set(prev);
+        savedIds.forEach((id) => next.delete(id));
+        return next;
+      });
 
-      setSaveHint("全部系统已保存到数据库");
+      setSaveHint(targetIds.length === systems.length ? "全部系统已保存到数据库" : "当前系统已保存");
       setTimeout(() => setSaveHint(""), 1200);
       await fetchRemote();
     } catch (e) {
@@ -1075,6 +1105,7 @@ export default function Home() {
       setConflictMsg("保存失败，请检查网络或权限");
     } finally {
       setSaving(false);
+      setProgressText("");
     }
   };
 
@@ -1124,7 +1155,7 @@ export default function Home() {
       {(saveHint || saving || syncing) && (
         <div className="pointer-events-none fixed inset-x-0 top-4 z-50 flex justify-center px-4">
           <div className="pointer-events-auto rounded-full bg-slate-900/90 px-4 py-2 text-xs font-medium text-white shadow-lg shadow-slate-900/20">
-            {saving ? "保存中，请稍候..." : syncing ? "同步中..." : saveHint}
+            {saving ? progressText || "保存中，请稍候..." : syncing ? "同步中..." : saveHint}
           </div>
         </div>
       )}
@@ -1181,7 +1212,7 @@ export default function Home() {
               </div>
               <button
                 onClick={handleManualSync}
-                disabled={syncing}
+                disabled={syncing || saving}
                 className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition ${
                   syncing ? "bg-amber-300 cursor-wait" : "bg-amber-500 hover:bg-amber-600"
                 }`}
@@ -1189,13 +1220,22 @@ export default function Home() {
                 {syncing || loadingRemote ? "同步中..." : "⇅ 同步数据"}
               </button>
               <button
-                onClick={handleSaveClick}
+                onClick={() => saveSystemsBatch([activeSystemId])}
                 disabled={saving}
                 className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition ${
                   saving ? "bg-blue-300 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
                 }`}
               >
-                {saving ? "保存中..." : "☁️ 提交保存"}
+                {saving ? "保存中..." : "☁️ 提交当前"}
+              </button>
+              <button
+                onClick={() => saveSystemsBatch(Array.from(dirtySystems.size ? dirtySystems : new Set(systems.map((s) => s.id))))}
+                disabled={saving}
+                className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition ${
+                  saving ? "bg-green-300 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"
+                }`}
+              >
+                {saving ? "保存中..." : `☁️ 提交全部${dirtySystems.size ? `(${dirtySystems.size})` : ""}`}
               </button>
               <button
                 onClick={handleExport}
@@ -1214,9 +1254,7 @@ export default function Home() {
           </div>
         </header>
 
-      {(saving || creatingTask) && (
-        <div className="fixed inset-0 z-40 bg-black/10 backdrop-blur-sm" aria-hidden />
-      )}
+      {(saving || creatingTask) && <div className="fixed inset-0 z-40 bg-black/10 backdrop-blur-sm" aria-hidden />}
 
       {creatingTask && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
