@@ -752,10 +752,15 @@ export default function Home() {
     () => systems.find((s) => s.id === activeSystemId) || systems[0],
     [systems, activeSystemId]
   );
-  const sortedSystems = useMemo(
-    () => [...systems].sort((a, b) => a.name.localeCompare(b.name, "zh-CN")),
-    [systems]
-  );
+  const sortedSystems = useMemo(() => {
+    const tierWeight: Record<string, number> = { A: 1, B: 2, C: 3 };
+    return [...systems].sort((a, b) => {
+      const wa = tierWeight[a.tier] ?? 99;
+      const wb = tierWeight[b.tier] ?? 99;
+      if (wa !== wb) return wa - wb;
+      return a.name.localeCompare(b.name, "zh-CN");
+    });
+  }, [systems]);
   const scores = useMemo(() => calculateScore(activeSystem, tools), [activeSystem, tools]);
   const activeTool = useMemo(() => tools.find((t) => t.id === activeToolId) || tools[0], [tools, activeToolId]);
 
