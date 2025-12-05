@@ -10,7 +10,7 @@ export async function POST(req: Request) {
     const { systemId, scores, ruleVersion, details, taskId } = body;
     if (!systemId || !scores || !taskId) return NextResponse.json({ error: "Missing payload" }, { status: 400 });
 
-    const { error } = await supabaseService.from("scores").insert({
+    const payload = {
       system_id: systemId,
       rule_version: ruleVersion || (process.env.NEXT_PUBLIC_RULE_VERSION || (scores.rule_version ?? "v1")),
       total: scores.total,
@@ -21,7 +21,11 @@ export async function POST(req: Request) {
       details: details || scores,
       created_at: new Date().toISOString(),
       task_id: taskId,
-    });
+    };
+
+    const { error } = await supabaseService
+      .from("scores")
+      .upsert(payload, { onConflict: "task_id,system_id" });
     if (error) throw error;
     return NextResponse.json({ ok: true });
   } catch (e: any) {
