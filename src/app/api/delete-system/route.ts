@@ -15,23 +15,11 @@ export async function POST(req: Request) {
 
     // 如果是 UUID，直接按 id 删除
     if (id && isUUID(id)) {
-      const delTools = supabaseService.from("system_tools").delete().eq("system_id", id);
-      const delScen = supabaseService.from("system_scenarios").delete().eq("system_id", id);
-      const delScores = supabaseService.from("scores").delete().eq("system_id", id);
-      const delSys = supabaseService.from("systems").delete().eq("id", id);
-      if (taskId) {
-        await delTools.eq("task_id", taskId);
-        await delScen.eq("task_id", taskId);
-        await delScores.eq("task_id", taskId);
-        const { error } = await delSys.eq("task_id", taskId);
-        if (error) throw error;
-      } else {
-        await delTools;
-        await delScen;
-        await delScores;
-        const { error } = await delSys;
-        if (error) throw error;
-      }
+      await supabaseService.from("system_tools").delete().eq("system_id", id);
+      await supabaseService.from("system_scenarios").delete().eq("system_id", id);
+      await supabaseService.from("scores").delete().eq("system_id", id);
+      const { error } = await supabaseService.from("systems").delete().eq("id", id).eq("task_id", taskId);
+      if (error) throw error;
       return NextResponse.json({ ok: true });
     }
 
