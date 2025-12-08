@@ -815,6 +815,9 @@ export default function Home() {
   }, []);
 
   const handleManualSync = async () => {
+    // 清理本地缓存，避免旧数据闪现
+    localStorage.removeItem(SYSTEM_STORAGE_KEY);
+    localStorage.removeItem(TOOL_STORAGE_KEY);
     setSyncing(true);
     await fetchRemote();
     setSyncing(false);
