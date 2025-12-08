@@ -824,6 +824,10 @@ export default function Home() {
   };
 
   useEffect(() => {
+    handleManualSync();
+  }, []);
+
+  useEffect(() => {
     if (!isUUID(activeTaskId)) {
       setActiveTaskId(DEFAULT_TASK_ID);
     }
@@ -1072,7 +1076,9 @@ export default function Home() {
           body: JSON.stringify(payload),
         });
         if (resCfg.status === 409) {
-          const msg = (await resCfg.json().catch(() => ({})))?.error || "保存冲突：数据已被他人更新，请刷新后再试。";
+          const msg =
+            (await resCfg.json().catch(() => ({})))?.error ||
+            `保存冲突：${sys.name} 已被他人更新，请同步后再试。`;
           setConflictMsg(msg);
           setSaving(false);
           setProgressText("");
