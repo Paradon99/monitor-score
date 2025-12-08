@@ -24,7 +24,7 @@ export async function POST(req: Request) {
     if (insertErr) throw insertErr;
 
     if (cloneFrom) {
-      // 复制系统及关联
+      // 仅复制系统及关联（工具/指标为全局，不再克隆）
       const { data: systems } = await supabaseService
         .from("systems")
         .select("id,name,class,is_self_built,server_coverage,app_coverage,server_total,server_covered,app_total,app_covered,documented_items")
@@ -52,7 +52,10 @@ export async function POST(req: Request) {
         const { error: sysErr } = await supabaseService.from("systems").insert(sysRows);
         if (sysErr) throw sysErr;
 
-        const { data: sysTools } = await supabaseService.from("system_tools").select("system_id,tool_id,caps_selected").eq("task_id", cloneFrom);
+        const { data: sysTools } = await supabaseService
+          .from("system_tools")
+          .select("system_id,tool_id,caps_selected")
+          .eq("task_id", cloneFrom);
         if (sysTools && sysTools.length) {
           const rows = sysTools
             .map((st) => ({
@@ -68,7 +71,10 @@ export async function POST(req: Request) {
           }
         }
 
-        const { data: sysScen } = await supabaseService.from("system_scenarios").select("system_id,scenario_id,checked").eq("task_id", cloneFrom);
+        const { data: sysScen } = await supabaseService
+          .from("system_scenarios")
+          .select("system_id,scenario_id,checked")
+          .eq("task_id", cloneFrom);
         if (sysScen && sysScen.length) {
           const rows = sysScen
             .map((sc) => ({
