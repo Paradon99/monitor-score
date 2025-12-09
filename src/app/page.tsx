@@ -831,7 +831,8 @@ const [progressText, setProgressText] = useState<string>("");
     setSyncing(true);
     await fetchRemote();
     setSyncing(false);
-    setDirtySystems(new Set());
+    setDirtyInfoSystems(new Set());
+    setDirtyCoverageSystems(new Set());
     setSaveHint("已从数据库同步");
     setTimeout(() => setSaveHint(""), 1200);
   };
@@ -866,7 +867,7 @@ const [progressText, setProgressText] = useState<string>("");
   // 关闭自动实时刷新，改为手动同步
 
   const activeSystem = useMemo(
-    () => systems.find((s) => s.id === activeSystemId) || systems[0],
+    () => systems.find((s) => s.id === activeSystemId) || systems[0] || createDefaultSystem(),
     [systems, activeSystemId]
   );
   const sortedSystems = useMemo(() => {
