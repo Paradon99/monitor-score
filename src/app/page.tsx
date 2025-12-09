@@ -518,31 +518,34 @@ const calculateScore = (data: SystemData, tools: MonitorTool[]): ScoreDetail => 
   score1 -= appDeduct;
   score1 += selfBuiltBonus ?? 0;
 
+  // 1.2 标准场景覆盖：以“工具+能力”为单位，只有存在标准指标才参与计分
   let score1_2 = 0;
+  const capScores: number[] = [];
   if (data.selectedToolIds.length > 0) {
-    let sumTerms = 0;
     data.selectedToolIds.forEach((tid) => {
       const tool = tools.find((t) => t.id === tid);
       if (!tool) return;
       const enabledCaps = data.toolCapabilities[tid] || [];
-      const relevant = tool.scenarios.filter((s) => enabledCaps.includes(s.category));
-      if (relevant.length === 0) {
-        sumTerms += 10; // 无相关指标则视为满分参与平均
-        return;
-      }
-      const checked = relevant.filter((s) => data.checkedScenarioIds.includes(s.id)).length;
-      const pct = relevant.length === 0 ? 0 : checked / relevant.length;
-      const dr = (standardRule as any)?.deductionRules || [];
-      const deduct =
-        dr.find((r: any) => pct >= 1 && r.when?.includes(">= 1"))?.deduct ??
-        dr.find((r: any) => pct >= 0.7 && r.when?.includes(">= 0.7"))?.deduct ??
-        dr.find((r: any) => pct >= 0.5 && r.when?.includes(">= 0.5"))?.deduct ??
-        dr.find((r: any) => pct >= 0.3 && r.when?.includes(">= 0.3"))?.deduct ??
-        dr.find((r: any) => r.when?.includes("< 0.3"))?.deduct ??
-        10;
-      sumTerms += Math.max(0, ((standardRule as any)?.basePoints ?? 10) - deduct);
+      enabledCaps.forEach((cap) => {
+        const relevant = tool.scenarios.filter((s) => s.category === cap);
+        if (relevant.length === 0) return; // 该能力无标准指标则不计入分母
+        const checked = relevant.filter((s) => data.checkedScenarioIds.includes(s.id)).length;
+        const pct = relevant.length === 0 ? 0 : checked / relevant.length;
+        const dr = (standardRule as any)?.deductionRules || [];
+        const deduct =
+          dr.find((r: any) => pct >= 1 && r.when?.includes(">= 1"))?.deduct ??
+          dr.find((r: any) => pct >= 0.7 && r.when?.includes(">= 0.7"))?.deduct ??
+          dr.find((r: any) => pct >= 0.5 && r.when?.includes(">= 0.5"))?.deduct ??
+          dr.find((r: any) => pct >= 0.3 && r.when?.includes(">= 0.3"))?.deduct ??
+          dr.find((r: any) => r.when?.includes("< 0.3"))?.deduct ??
+          10;
+        const base = (standardRule as any)?.basePoints ?? 10;
+        capScores.push(Math.max(0, base - deduct));
+      });
     });
-    score1_2 = sumTerms / data.selectedToolIds.length;
+    if (capScores.length > 0) {
+      score1_2 = capScores.reduce((a, b) => a + b, 0) / capScores.length;
+    }
   }
 
   const docBonusRule = (docRule as any)?.rules?.[0];
@@ -550,7 +553,7 @@ const calculateScore = (data: SystemData, tools: MonitorTool[]): ScoreDetail => 
   const docCap = docBonusRule?.cap ?? 5;
   const score1_3 = Math.min(docCap, Math.max(0, data.documentedItems * docBonusPer));
 
-  detail.part1 = Math.min(60, Math.round((score1 + score1_2 + score1_3) * 10) / 10);
+  detail.part1 = Math.max(0, Math.min(60, Math.round((score1 + score1_2 + score1_3) * 10) / 10));
 
   const accRate = deriveAccuracyRate(data);
   detail.accuracyRatePct = accRate * 100;
@@ -572,7 +575,7 @@ const calculateScore = (data: SystemData, tools: MonitorTool[]): ScoreDetail => 
   })();
   detail.discoveryScore = discScore;
 
-  detail.part2 = accScore + discScore;
+  detail.part2 = Math.max(0, accScore + discScore);
 
   let score3 = 0;
   score3 +=
@@ -615,11 +618,13 @@ const calculateScore = (data: SystemData, tools: MonitorTool[]): ScoreDetail => 
   const rectCap =
     (rectRule as any)?.rules?.find((r: any) => r.when?.includes("overdueRectificationCount"))?.capDeduct ?? 5;
 
-  detail.part4 =
+  detail.part4 = Math.max(
+    0,
     Math.max(0, 5 - Math.min(responseCap, data.lateResponseCount * responseDeductPer)) +
-    Math.max(0, 5 - Math.min(rectCap, data.overdueCount * rectDeductPer));
+      Math.max(0, 5 - Math.min(rectCap, data.overdueCount * rectDeductPer))
+  );
 
-  detail.total = Math.round((detail.part1 + detail.part2 + detail.part3 + detail.part4) * 10) / 10;
+  detail.total = Math.max(0, Math.round((detail.part1 + detail.part2 + detail.part3 + detail.part4) * 10) / 10);
   return detail;
 };
 
