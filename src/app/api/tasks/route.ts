@@ -24,94 +24,66 @@ export async function POST(req: Request) {
     if (insertErr) throw insertErr;
 
     if (cloneFrom) {
-      // 仅复制系统及关联（工具/指标为全局，不再克隆）
-      const { data: systems } = await supabaseService
-        .from("systems")
-        .select("id,name,class,is_self_built,server_coverage,app_coverage,server_total,server_covered,app_total,app_covered,documented_items")
+      // 仅复制覆盖关系与评分（系统/工具/指标为全局，不再克隆系统）
+      const { data: sysTools } = await supabaseService
+        .from("system_tools")
+        .select("system_id,tool_id,caps_selected")
         .eq("task_id", cloneFrom);
-      const sysMap: Record<string, string> = {};
-      if (systems && systems.length) {
-        const sysRows = systems.map((s) => {
-          const newId = genId();
-          sysMap[s.id] = newId;
-          return {
-            id: newId,
-            name: s.name,
-            class: s.class,
-            is_self_built: s.is_self_built,
-            server_coverage: s.server_coverage,
-            app_coverage: s.app_coverage,
-            server_total: s.server_total,
-            server_covered: s.server_covered,
-            app_total: s.app_total,
-            app_covered: s.app_covered,
-            documented_items: s.documented_items,
+      if (sysTools && sysTools.length) {
+        const rows = sysTools
+          .map((st) => ({
+            system_id: st.system_id,
+            tool_id: st.tool_id,
+            caps_selected: st.caps_selected || [],
             task_id: newTaskId,
-          };
-        });
-        const { error: sysErr } = await supabaseService.from("systems").insert(sysRows);
-        if (sysErr) throw sysErr;
-
-        const { data: sysTools } = await supabaseService
-          .from("system_tools")
-          .select("system_id,tool_id,caps_selected")
-          .eq("task_id", cloneFrom);
-        if (sysTools && sysTools.length) {
-          const rows = sysTools
-            .map((st) => ({
-              system_id: sysMap[st.system_id],
-              tool_id: st.tool_id,
-              caps_selected: st.caps_selected || [],
-              task_id: newTaskId,
-            }))
-            .filter((r) => r.system_id && r.tool_id);
-          if (rows.length) {
-            const { error } = await supabaseService.from("system_tools").insert(rows);
-            if (error) throw error;
-          }
+          }))
+          .filter((r) => r.system_id && r.tool_id);
+        if (rows.length) {
+          const { error } = await supabaseService.from("system_tools").insert(rows);
+          if (error) throw error;
         }
+      }
 
-        const { data: sysScen } = await supabaseService
-          .from("system_scenarios")
-          .select("system_id,scenario_id,checked")
-          .eq("task_id", cloneFrom);
-        if (sysScen && sysScen.length) {
-          const rows = sysScen
-            .map((sc) => ({
-              system_id: sysMap[sc.system_id],
-              scenario_id: sc.scenario_id && isUUID(sc.scenario_id) ? sc.scenario_id : undefined,
-              checked: sc.checked,
-              task_id: newTaskId,
-            }))
-            .filter((r) => r.system_id && r.scenario_id);
-          if (rows.length) {
-            const { error } = await supabaseService.from("system_scenarios").insert(rows);
-            if (error) throw error;
-          }
+      const { data: sysScen } = await supabaseService
+        .from("system_scenarios")
+        .select("system_id,scenario_id,checked")
+        .eq("task_id", cloneFrom);
+      if (sysScen && sysScen.length) {
+        const rows = sysScen
+          .map((sc) => ({
+            system_id: sc.system_id,
+            scenario_id: sc.scenario_id && isUUID(sc.scenario_id) ? sc.scenario_id : undefined,
+            checked: sc.checked,
+            task_id: newTaskId,
+          }))
+          .filter((r) => r.system_id && r.scenario_id);
+        if (rows.length) {
+          const { error } = await supabaseService.from("system_scenarios").insert(rows);
+          if (error) throw error;
         }
+      }
 
-        const { data: scores } = await supabaseService
-          .from("scores")
-          .select("system_id,rule_version,total,part1,part2,part3,part4,details")
-          .eq("task_id", cloneFrom);
-        if (scores && scores.length) {
-          const rows = scores
-            .map((sc) => ({
-              system_id: sysMap[sc.system_id],
-              rule_version: sc.rule_version,
-              total: sc.total,
-              part1: sc.part1,
-              part2: sc.part2,
-              part3: sc.part3,
-              part4: sc.part4,
-              details: sc.details,
-              task_id: newTaskId,
-            }))
-            .filter((r) => r.system_id);
-          if (rows.length) {
-            const { error } = await supabaseService.from("scores").insert(rows);
-            if (error) throw error;
-          }
+      const { data: scores } = await supabaseService
+        .from("scores")
+        .select("system_id,rule_version,total,part1,part2,part3,part4,details")
+        .eq("task_id", cloneFrom);
+      if (scores && scores.length) {
+        const rows = scores
+          .map((sc) => ({
+            system_id: sc.system_id,
+            rule_version: sc.rule_version,
+            total: sc.total,
+            part1: sc.part1,
+            part2: sc.part2,
+            part3: sc.part3,
+            part4: sc.part4,
+            details: sc.details,
+            task_id: newTaskId,
+          }))
+          .filter((r) => r.system_id);
+        if (rows.length) {
+          const { error } = await supabaseService.from("scores").insert(rows);
+          if (error) throw error;
         }
       }
     }

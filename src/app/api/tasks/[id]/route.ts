@@ -26,7 +26,6 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     await supabaseService.from("system_tools").delete().eq("task_id", id);
     await supabaseService.from("system_scenarios").delete().eq("task_id", id);
     await supabaseService.from("scores").delete().eq("task_id", id);
-    await supabaseService.from("systems").delete().eq("task_id", id);
     const { error } = await supabaseService.from("tasks").delete().eq("id", id);
     if (error) throw error;
     return NextResponse.json({ ok: true });
