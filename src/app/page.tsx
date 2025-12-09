@@ -746,11 +746,15 @@ const [progressText, setProgressText] = useState<string>("");
         .from("system_scenarios")
         .select("system_id,scenario_id,task_id")
         .eq("task_id", activeTaskId || DEFAULT_TASK_ID);
+      const { data: scoreData, error: scoreErr } = await supabase
+        .from("scores")
+        .select("system_id,details")
+        .eq("task_id", activeTaskId || DEFAULT_TASK_ID);
       const systemToolsRows = systemToolsData || [];
       const systemScenRows = systemScenData || [];
       const { data: tasksData } = await supabase.from("tasks").select("id,name,description");
-      if (toolsErr || sysErr || sysToolErr || sysScenErr) {
-        console.warn("Supabase fetch failed", toolsErr || sysErr || sysToolErr || sysScenErr);
+      if (toolsErr || sysErr || sysToolErr || sysScenErr || scoreErr) {
+        console.warn("Supabase fetch failed", toolsErr || sysErr || sysToolErr || sysScenErr || scoreErr);
         return;
       }
       if (tasksData && tasksData.length) {
@@ -797,6 +801,8 @@ const [progressText, setProgressText] = useState<string>("");
           const checkedScenarioIds = (systemScenRows || [])
             .filter((sc: any) => sc.system_id === s.id)
             .map((sc: any) => sc.scenario_id);
+          const scoreRow = (scoreData || []).find((sc: any) => sc.system_id === s.id);
+          const inputs = (scoreRow?.details as any)?.inputs || {};
           return {
             ...createDefaultSystem(),
             id: s.id,
@@ -812,6 +818,18 @@ const [progressText, setProgressText] = useState<string>("");
             appCovered: s.app_covered ?? 0,
             isSelfBuilt: !!s.is_self_built,
             documentedItems: s.documented_items ?? 0,
+            alertTotal: inputs.alertTotal ?? 0,
+            falseAlertTotal: inputs.falseAlertTotal ?? 0,
+            accuracyRate: inputs.accuracyRate,
+            accuracy: inputs.accuracy ?? "high",
+            faultTotal: inputs.faultTotal ?? 0,
+            faultDetectedTotal: inputs.faultDetectedTotal ?? 0,
+            discoveryRatePct: inputs.discoveryRatePct,
+            discoveryRate: inputs.discoveryRate,
+            dataMonitorConfigured: inputs.dataMonitorConfigured ?? "na",
+            missingMonitorItems: inputs.missingMonitorItems ?? 0,
+            lateResponseCount: inputs.lateResponseCount ?? 0,
+            overdueCount: inputs.overdueCount ?? 0,
           };
         });
         setSystems(mappedSystems);
@@ -1179,6 +1197,27 @@ const [progressText, setProgressText] = useState<string>("");
           systemId: newSysId,
           scorePayload: finalScore,
         });
+        const scoreInputs = {
+          alertTotal: mappedSys.alertTotal,
+          falseAlertTotal: mappedSys.falseAlertTotal,
+          accuracyRate: mappedSys.accuracyRate,
+          accuracy: mappedSys.accuracy,
+          faultTotal: mappedSys.faultTotal,
+          faultDetectedTotal: mappedSys.faultDetectedTotal,
+          discoveryRatePct: mappedSys.discoveryRatePct,
+          discoveryRate: mappedSys.discoveryRate,
+          dataMonitorConfigured: mappedSys.dataMonitorConfigured,
+          missingMonitorItems: mappedSys.missingMonitorItems,
+          lateResponseCount: mappedSys.lateResponseCount,
+          overdueCount: mappedSys.overdueCount,
+          serverTotal: mappedSys.serverTotal,
+          serverCovered: mappedSys.serverCovered,
+          appTotal: mappedSys.appTotal,
+          appCovered: mappedSys.appCovered,
+          documentedItems: mappedSys.documentedItems,
+          isSelfBuilt: mappedSys.isSelfBuilt,
+        };
+
         const resScore = await fetch("/api/save-score", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1187,7 +1226,7 @@ const [progressText, setProgressText] = useState<string>("");
             systemId: newSysId,
             scores: finalScore,
             ruleVersion: (ruleData as any).version,
-            details: finalScore,
+            details: { ...finalScore, inputs: scoreInputs },
           }),
         });
         if (!resScore.ok) {
