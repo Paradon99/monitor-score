@@ -242,8 +242,8 @@ const ruleById = (id: string) =>
     .flatMap((d: any) => d.items || [])
     .find((i: any) => i.id === id) as any;
 
-const createDefaultSystem = (): SystemData => ({
-  id: typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `sys_${Date.now()}`,
+const createDefaultSystem = (id: string = "sys_default"): SystemData => ({
+  id,
   name: "基金代销系统",
   tier: "A",
   isSelfBuilt: false,
@@ -908,7 +908,7 @@ const [progressText, setProgressText] = useState<string>("");
     setDirtyCoverageSystems(allIds);
   };
   const scores = useMemo(() => calculateScore(activeSystem, tools), [activeSystem, tools]);
-  const activeTool = useMemo(() => tools.find((t) => t.id === activeToolId) || tools[0], [tools, activeToolId]);
+  const activeTool = useMemo(() => tools.find((t) => t.id === activeToolId) || null, [tools, activeToolId]);
 
   useLayoutEffect(() => {
     const measure = () => {
@@ -1328,9 +1328,10 @@ const [progressText, setProgressText] = useState<string>("");
                 <button
                   key={tab}
                   onClick={() => setView(tab as any)}
+                  disabled={saving || syncing}
                   className={`rounded px-3 py-1.5 text-sm font-medium ${
                     view === tab ? "bg-white text-blue-600 shadow-sm" : "text-slate-600 hover:text-slate-800"
-                  }`}
+                  } ${saving || syncing ? "opacity-60 cursor-not-allowed" : ""}`}
                 >
                   {tab === "scoring" ? "评分" : tab === "config" ? "配置" : "报表"}
                 </button>
@@ -1816,12 +1817,12 @@ const [progressText, setProgressText] = useState<string>("");
                   + 新增
                 </button>
               </div>
-              <div className="space-y-2">
-                {sortedSystems.map((sys) => (
-                  <div
-                    key={sys.id}
-                    className={`group relative overflow-hidden rounded border p-3 transition-all ${
-                      activeSystemId === sys.id
+            <div className="space-y-2">
+              {sortedSystems.map((sys) => (
+                <div
+                  key={sys.id}
+                  className={`group relative overflow-hidden rounded border p-3 transition-all ${
+                    activeSystemId === sys.id
                         ? "border-blue-500 bg-white shadow-md ring-1 ring-blue-500"
                         : "border-transparent bg-white hover:border-slate-300"
                     }`}
