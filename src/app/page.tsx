@@ -1053,6 +1053,12 @@ export default function Home() {
       setConflictMsg(targetIds.length === 0 ? "没有改动需要提交" : "请先选择任务");
       return;
     }
+    console.log("[debug] save batch entry", {
+      taskId: activeTaskId,
+      targetIds,
+      systemsCount: systems.length,
+      dirty: Array.from(dirtySystems),
+    });
     setConflictMsg("");
     setSaving(true);
     let updatedSystems = [...systems];
@@ -1749,7 +1755,14 @@ export default function Home() {
                     }`}
                   >
                     <button onClick={() => setActiveSystemId(sys.id)} className="block w-full text-left">
-                      <div className="font-bold text-slate-800">{sys.name}</div>
+                      <div className="flex items-center gap-2">
+                        <div className="font-bold text-slate-800">{sys.name}</div>
+                        {dirtySystems.has(sys.id) && (
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                            已改动
+                          </span>
+                        )}
+                      </div>
                       <div className="mt-1 flex justify-between text-xs text-slate-500">
                         <span>{sys.tier}类系统</span>
                         <span className="font-mono">{calculateScore(sys, tools).total} 分</span>
