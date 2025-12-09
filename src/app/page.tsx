@@ -1067,6 +1067,18 @@ export default function Home() {
         setProgressText(`保存中 ${i + 1}/${targetIds.length}`);
         const sys = updatedSystems.find((s) => s.id === targetIds[i]);
         if (!sys) continue;
+        // 调试：提交前打印当前系统和打分
+        const calcScore = calculateScore(sys, updatedTools);
+        console.log("[debug] save system payload", {
+          taskId: activeTaskId,
+          sysId: sys.id,
+          sysName: sys.name,
+          tier: sys.tier,
+          selectedToolIds: sys.selectedToolIds,
+          toolCapabilities: sys.toolCapabilities,
+          checkedScenarioIds: sys.checkedScenarioIds,
+          scorePreview: calcScore,
+        });
         const payload = {
           system: sys,
           tools: updatedTools,
@@ -1114,15 +1126,21 @@ export default function Home() {
         };
         updatedSystems = updatedSystems.map((s) => (s.id === sys.id ? mappedSys : s));
 
+        const finalScore = calculateScore(mappedSys, updatedTools);
+        console.log("[debug] save-score payload", {
+          taskId: activeTaskId,
+          systemId: newSysId,
+          scorePayload: finalScore,
+        });
         const resScore = await fetch("/api/save-score", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             taskId: activeTaskId,
             systemId: newSysId,
-            scores: calculateScore(mappedSys, updatedTools),
+            scores: finalScore,
             ruleVersion: (ruleData as any).version,
-            details: calculateScore(mappedSys, updatedTools),
+            details: finalScore,
           }),
         });
         if (!resScore.ok) {
