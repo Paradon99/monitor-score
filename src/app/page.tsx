@@ -755,11 +755,18 @@ export default function Home() {
         .order("updated_at", { ascending: false });
       const { data: systemsData, error: sysErr } = await supabase
         .from("systems")
-        .select("id,name,class,updated_at,task_id,system_tools(tool_id,caps_selected),system_scenarios(scenario_id)")
+        .select("id,name,class,updated_at,server_total,server_covered,app_total,app_covered,is_self_built,documented_items");
+      const { data: systemToolsData, error: sysToolErr } = await supabase
+        .from("system_tools")
+        .select("system_id,tool_id,caps_selected,task_id")
+        .eq("task_id", activeTaskId || DEFAULT_TASK_ID);
+      const { data: systemScenData, error: sysScenErr } = await supabase
+        .from("system_scenarios")
+        .select("system_id,scenario_id,task_id")
         .eq("task_id", activeTaskId || DEFAULT_TASK_ID);
       const { data: tasksData } = await supabase.from("tasks").select("id,name,description");
-      if (toolsErr || sysErr) {
-        console.warn("Supabase fetch failed", toolsErr || sysErr);
+      if (toolsErr || sysErr || sysToolErr || sysScenErr) {
+        console.warn("Supabase fetch failed", toolsErr || sysErr || sysToolErr || sysScenErr);
         return;
       }
       if (tasksData && tasksData.length) {
@@ -792,12 +799,15 @@ export default function Home() {
       }
       if (systemsData && systemsData.length) {
         const mappedSystems: SystemData[] = systemsData.map((s: any) => {
-          const selectedToolIds = (s.system_tools || []).map((st: any) => st.tool_id);
+          const relTools = (systemToolsData || []).filter((st: any) => st.system_id === s.id);
+          const selectedToolIds = relTools.map((st: any) => st.tool_id);
           const toolCapabilities: Record<string, MonitorCategory[]> = {};
-          (s.system_tools || []).forEach((st: any) => {
+          relTools.forEach((st: any) => {
             toolCapabilities[st.tool_id] = normalizeCaps(st.caps_selected || []);
           });
-          const checkedScenarioIds = (s.system_scenarios || []).map((sc: any) => sc.scenario_id);
+          const checkedScenarioIds = (systemScenData || [])
+            .filter((sc: any) => sc.system_id === s.id)
+            .map((sc: any) => sc.scenario_id);
           return {
             ...createDefaultSystem(),
             id: s.id,
@@ -807,6 +817,12 @@ export default function Home() {
             selectedToolIds,
             toolCapabilities,
             checkedScenarioIds,
+            serverTotal: s.server_total ?? 0,
+            serverCovered: s.server_covered ?? 0,
+            appTotal: s.app_total ?? 0,
+            appCovered: s.app_covered ?? 0,
+            isSelfBuilt: !!s.is_self_built,
+            documentedItems: s.documented_items ?? 0,
           };
         });
         setSystems(mappedSystems);
@@ -2013,13 +2029,20 @@ export default function Home() {
                                       <tr
                                         key={s.id}
                                         className="border-t border-slate-100 hover:bg-slate-50 cursor-pointer"
-                                        onClick={() => toggleScenario(s.id)}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          toggleScenario(s.id);
+                                        }}
                                       >
                                         <td className="px-3 py-2 text-left">
                                           <input
                                             type="checkbox"
                                             checked={activeSystem.checkedScenarioIds.includes(s.id)}
-                                            onChange={() => toggleScenario(s.id)}
+                                            onChange={(e) => {
+                                              e.stopPropagation();
+                                              toggleScenario(s.id);
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
                                           />
                                         </td>
                                         <td className="px-3 py-2 text-slate-700">{CATEGORY_LABELS[s.category]}</td>
