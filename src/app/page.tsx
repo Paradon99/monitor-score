@@ -125,21 +125,8 @@ const normalizeCaps = (caps: string[]): MonitorCategory[] => {
   return Array.from(new Set(cleaned));
 };
 
-const DEFAULT_TOOLS: MonitorTool[] = (toolsFromExcel as any[]).length
-  ? (toolsFromExcel as any[]).map((t, idx) => ({
-      id: t.id || `tool_${idx}`,
-      name: t.name || `工具${idx + 1}`,
-      defaultCapabilities: Array.isArray(t.defaultCapabilities) ? normalizeCaps(t.defaultCapabilities) : [],
-      scenarios: [],
-    }))
-  : [
-      {
-        id: "zabbix",
-        name: "Zabbix",
-        defaultCapabilities: ["host", "process", "network"],
-        scenarios: [],
-      },
-    ];
+// 初始不带工具种子，依赖同步从数据库拉取
+const DEFAULT_TOOLS: MonitorTool[] = [];
 
 const mergeStandardIndicators = (tools: MonitorTool[]): MonitorTool[] => {
   const std = standardIndicators as Record<string, any[]>;
@@ -240,19 +227,8 @@ const mapExcelSystem = (raw: any, idx: number): SystemData => ({
   earlyDetectionCount: 0,
 });
 
-const downloadConfigSystems =
-  (configFromDownload as any)?.systems && Array.isArray((configFromDownload as any).systems)
-    ? (configFromDownload as any).systems.map(mapSeedSystem)
-    : [];
-
-const INITIAL_SYSTEMS: SystemData[] =
-  downloadConfigSystems.length > 0
-    ? downloadConfigSystems
-    : Array.isArray((systemsFromExcel as any))
-    ? (systemsFromExcel as any).map(mapExcelSystem)
-    : Array.isArray((seedConfig as any).systems)
-    ? (seedConfig as any).systems.map(mapSeedSystem)
-    : [];
+// 不再灌入任何默认/种子数据，初始为空，依赖同步从数据库拉取
+const INITIAL_SYSTEMS: SystemData[] = [];
 
 const SYSTEM_STORAGE_KEY = "monitor_systems_v8";
 const TOOL_STORAGE_KEY = "monitor_tools_v8";
@@ -479,8 +455,12 @@ const calculateScore = (data: SystemData, tools: MonitorTool[]): ScoreDetail => 
   const responseRule = ruleById("response");
   const rectRule = ruleById("rectification");
 
+  const selectedWithCaps = (data.selectedToolIds || []).filter(
+    (tid) => (data.toolCapabilities[tid] || []).length > 0
+  );
+
   const covered = new Set<MonitorCategory>();
-  data.selectedToolIds.forEach((tid) => {
+  selectedWithCaps.forEach((tid) => {
     (data.toolCapabilities[tid] || []).forEach((c) => covered.add(c));
   });
   const missingCaps = MANDATORY_CAPS.filter((c) => !covered.has(c));
@@ -521,8 +501,8 @@ const calculateScore = (data: SystemData, tools: MonitorTool[]): ScoreDetail => 
   // 1.2 标准场景覆盖：以“工具+能力”为单位，只有存在标准指标才参与计分
   let score1_2 = 0;
   const capScores: number[] = [];
-  if (data.selectedToolIds.length > 0) {
-    data.selectedToolIds.forEach((tid) => {
+  if (selectedWithCaps.length > 0) {
+    selectedWithCaps.forEach((tid) => {
       const tool = tools.find((t) => t.id === tid);
       if (!tool) return;
       const enabledCaps = data.toolCapabilities[tid] || [];
@@ -629,9 +609,9 @@ const calculateScore = (data: SystemData, tools: MonitorTool[]): ScoreDetail => 
 };
 
 export default function Home() {
-  const initialSystems = INITIAL_SYSTEMS.length > 0 ? INITIAL_SYSTEMS : [createDefaultSystem()];
-  const [systems, setSystems] = useState<SystemData[]>(initialSystems.length ? initialSystems : [createDefaultSystem()]);
-  const [activeSystemId, setActiveSystemId] = useState<string>(initialSystems[0]?.id || "sys_default");
+  const initialSystems: SystemData[] = INITIAL_SYSTEMS;
+    const [systems, setSystems] = useState<SystemData[]>(initialSystems);
+  const [activeSystemId, setActiveSystemId] = useState<string>(initialSystems[0]?.id || "");
   const [tools, setTools] = useState<MonitorTool[]>(mergeStandardIndicators(DEFAULT_TOOLS));
   const [tasks, setTasks] = useState<Task[]>([{ id: DEFAULT_TASK_ID, name: "默认任务" }]);
   const [activeTaskId, setActiveTaskId] = useState<string>(DEFAULT_TASK_ID);
@@ -651,13 +631,15 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [conflictMsg, setConflictMsg] = useState<string>("");
   const [saving, setSaving] = useState<boolean>(false);
-  const [syncing, setSyncing] = useState<boolean>(false);
-  const [hasLocalData, setHasLocalData] = useState<boolean>(false);
-  const [creatingTask, setCreatingTask] = useState<boolean>(false);
-  const [newTaskName, setNewTaskName] = useState<string>("");
-  const [cloneFromTaskId, setCloneFromTaskId] = useState<string | null>(null);
-  const [dirtySystems, setDirtySystems] = useState<Set<string>>(new Set());
-  const [progressText, setProgressText] = useState<string>("");
+const [syncing, setSyncing] = useState<boolean>(false);
+const [hasLocalData, setHasLocalData] = useState<boolean>(false);
+const [creatingTask, setCreatingTask] = useState<boolean>(false);
+const [newTaskName, setNewTaskName] = useState<string>("");
+const [cloneFromTaskId, setCloneFromTaskId] = useState<string | null>(null);
+const [dirtyInfoSystems, setDirtyInfoSystems] = useState<Set<string>>(new Set());
+const [dirtyCoverageSystems, setDirtyCoverageSystems] = useState<Set<string>>(new Set());
+const [dirtyTools, setDirtyTools] = useState<boolean>(false);
+const [progressText, setProgressText] = useState<string>("");
   const renameTask = async (id: string) => {
     const task = tasks.find((t) => t.id === id);
     const nextName = window.prompt("输入新的任务名称", task?.name || "");
@@ -712,33 +694,33 @@ export default function Home() {
       const savedTools = localStorage.getItem(TOOL_STORAGE_KEY);
       const savedTask = localStorage.getItem(TASK_STORAGE_KEY);
       if (savedTask) setActiveTaskId(isUUID(savedTask) ? savedTask : DEFAULT_TASK_ID);
-      if (savedSys || savedTools) setHasLocalData(true);
       if (savedSys) {
         const parsed = JSON.parse(savedSys);
-        const sanitized = Array.isArray(parsed) ? parsed.map(sanitizeSystem) : initialSystems;
+        const sanitized = Array.isArray(parsed) ? parsed.map(sanitizeSystem) : [];
         if (sanitized.length > 0) {
           setSystems(sanitized);
           setActiveSystemId(sanitized[0].id);
+          setHasLocalData(true);
         }
       }
-      if (savedTools) setTools(sanitizeTools(JSON.parse(savedTools)));
+      if (savedTools) {
+        const parsedTools = sanitizeTools(JSON.parse(savedTools));
+        if (parsedTools.length > 0) {
+          setTools(parsedTools);
+          setHasLocalData(true);
+        }
+      }
     } catch (e) {
-      console.warn("本地缓存读取失败，使用默认数据", e);
+      console.warn("本地缓存读取失败", e);
     }
-  }, []);
+  }, [activeTaskId]);
 
   useEffect(() => {
     localStorage.setItem(SYSTEM_STORAGE_KEY, JSON.stringify(systems));
-    setSaveHint("已自动保存评分数据");
-    const timer = setTimeout(() => setSaveHint(""), 1200);
-    return () => clearTimeout(timer);
   }, [systems]);
 
   useEffect(() => {
     localStorage.setItem(TOOL_STORAGE_KEY, JSON.stringify(tools));
-    setSaveHint("已自动保存工具配置");
-    const timer = setTimeout(() => setSaveHint(""), 1200);
-    return () => clearTimeout(timer);
   }, [tools]);
 
   useEffect(() => {
@@ -764,6 +746,8 @@ export default function Home() {
         .from("system_scenarios")
         .select("system_id,scenario_id,task_id")
         .eq("task_id", activeTaskId || DEFAULT_TASK_ID);
+      const systemToolsRows = systemToolsData || [];
+      const systemScenRows = systemScenData || [];
       const { data: tasksData } = await supabase.from("tasks").select("id,name,description");
       if (toolsErr || sysErr || sysToolErr || sysScenErr) {
         console.warn("Supabase fetch failed", toolsErr || sysErr || sysToolErr || sysScenErr);
@@ -798,14 +782,19 @@ export default function Home() {
         setTools(mappedTools.length ? mappedTools : mergeStandardIndicators(DEFAULT_TOOLS));
       }
       if (systemsData && systemsData.length) {
+        const toolCapMap = new Map<string, MonitorCategory[]>();
+        (toolsData || []).forEach((t: any) => {
+          toolCapMap.set(t.id, normalizeCaps(t.default_caps || []));
+        });
         const mappedSystems: SystemData[] = systemsData.map((s: any) => {
-          const relTools = (systemToolsData || []).filter((st: any) => st.system_id === s.id);
+          const relTools = (systemToolsRows || []).filter((st: any) => st.system_id === s.id);
           const selectedToolIds = relTools.map((st: any) => st.tool_id);
           const toolCapabilities: Record<string, MonitorCategory[]> = {};
           relTools.forEach((st: any) => {
-            toolCapabilities[st.tool_id] = normalizeCaps(st.caps_selected || []);
+            const capsSel = normalizeCaps(st.caps_selected || []);
+            toolCapabilities[st.tool_id] = capsSel;
           });
-          const checkedScenarioIds = (systemScenData || [])
+          const checkedScenarioIds = (systemScenRows || [])
             .filter((sc: any) => sc.system_id === s.id)
             .map((sc: any) => sc.scenario_id);
           return {
@@ -861,6 +850,18 @@ export default function Home() {
     if (!activeToolId && tools.length) setActiveToolId(tools[0].id);
   }, [tools, activeToolId]);
 
+  // 防止提交/同步时误刷新或关闭页面
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (saving || syncing) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [saving, syncing]);
+
   const refreshPending = useRef<NodeJS.Timeout | null>(null);
   // 关闭自动实时刷新，改为手动同步
 
@@ -886,14 +887,25 @@ export default function Home() {
       ),
     [tools]
   );
-  const markDirty = (id: string) => {
-    setDirtySystems((prev) => {
+  const markInfoDirty = (id: string) => {
+    setDirtyInfoSystems((prev) => {
       const next = new Set(prev);
       next.add(id);
       return next;
     });
   };
-  const markAllSystemsDirty = () => setDirtySystems(new Set(systems.map((s) => s.id)));
+  const markCoverageDirty = (id: string) => {
+    setDirtyCoverageSystems((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      return next;
+    });
+  };
+  const markAllSystemsDirty = () => {
+    const allIds = new Set(systems.map((s) => s.id));
+    setDirtyInfoSystems(allIds);
+    setDirtyCoverageSystems(allIds);
+  };
   const scores = useMemo(() => calculateScore(activeSystem, tools), [activeSystem, tools]);
   const activeTool = useMemo(() => tools.find((t) => t.id === activeToolId) || tools[0], [tools, activeToolId]);
 
@@ -911,7 +923,7 @@ export default function Home() {
 
   const updateSystem = (updates: Partial<SystemData>) => {
     setSystems((prev) => prev.map((s) => (s.id === activeSystemId ? { ...s, ...updates } : s)));
-    markDirty(activeSystemId);
+    markInfoDirty(activeSystemId);
   };
 
   const toggleTool = (toolId: string) => {
@@ -934,7 +946,7 @@ export default function Home() {
         };
       })
     );
-    markDirty(activeSystemId);
+    markCoverageDirty(activeSystemId);
   };
 
   const toggleToolCapability = (toolId: string, cap: MonitorCategory) => {
@@ -946,7 +958,7 @@ export default function Home() {
         return { ...s, toolCapabilities: { ...s.toolCapabilities, [toolId]: newCaps } };
       })
     );
-    markDirty(activeSystemId);
+    markCoverageDirty(activeSystemId);
   };
 
   const toggleScenario = (id: string) => {
@@ -957,7 +969,7 @@ export default function Home() {
         return { ...s, checkedScenarioIds: current.includes(id) ? current.filter((i) => i !== id) : [...current, id] };
       })
     );
-    markDirty(activeSystemId);
+    markCoverageDirty(activeSystemId);
   };
 
   // 配置页：工具与指标编辑
@@ -966,7 +978,7 @@ export default function Home() {
     const newTool: MonitorTool = { id: newId, name: `新工具 ${tools.length + 1}`, defaultCapabilities: [], scenarios: [] };
     setTools((prev) => [...prev, newTool]);
     setActiveToolId(newId);
-    markAllSystemsDirty();
+    setDirtyTools(true);
   };
 
   const deleteTool = (id: string) => {
@@ -979,7 +991,7 @@ export default function Home() {
       }))
     );
     if (activeToolId === id) setActiveToolId(null);
-    markAllSystemsDirty();
+    setDirtyTools(true);
     // 同步删除到数据库（id 或 name 均可）
     fetch("/api/delete-tool", {
       method: "POST",
@@ -990,7 +1002,7 @@ export default function Home() {
 
   const updateTool = (id: string, patch: Partial<MonitorTool>) => {
     setTools((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
-    markAllSystemsDirty();
+    setDirtyTools(true);
   };
 
   const toggleDefaultCapConfig = (id: string, cap: MonitorCategory) => {
@@ -1012,7 +1024,7 @@ export default function Home() {
       level: newScenario.level,
     };
     updateTool(activeTool.id, { scenarios: [...(activeTool.scenarios || []), scen] });
-    markAllSystemsDirty();
+    setDirtyTools(true);
     setNewScenario({ ...newScenario, metric: "", threshold: "" });
   };
 
@@ -1024,20 +1036,21 @@ export default function Home() {
         scenarios: (activeTool.scenarios || []).map((s) => (s.id === sid ? { ...s, ...patch } : s)),
       }
     );
-    markAllSystemsDirty();
+    setDirtyTools(true);
   };
 
   const deleteScenarioInline = (sid: string) => {
     if (!activeTool) return;
     updateTool(activeTool.id, { scenarios: (activeTool.scenarios || []).filter((s) => s.id !== sid) });
-    markAllSystemsDirty();
+    setDirtyTools(true);
   };
 
   const addNewSystem = () => {
     const newId = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `sys_${Date.now()}`;
     setSystems((prev) => [...prev, { ...(INITIAL_SYSTEMS[0] || createDefaultSystem()), id: newId, name: `新系统 ${newId.slice(-4)}` }]);
     setActiveSystemId(newId);
-    markDirty(newId);
+    markInfoDirty(newId);
+    markCoverageDirty(newId);
   };
 
   const deleteSystem = (id: string, name?: string) => {
@@ -1078,12 +1091,13 @@ export default function Home() {
       taskId: activeTaskId,
       targetIds,
       systemsCount: systems.length,
-      dirty: Array.from(dirtySystems),
+      dirty: Array.from(new Set([...dirtyInfoSystems, ...dirtyCoverageSystems])),
     });
     setConflictMsg("");
     setSaving(true);
     let updatedSystems = [...systems];
     let updatedTools = [...tools];
+    let toolsToSend: MonitorTool[] = dirtyTools ? [...updatedTools] : [];
     let toolIdMap: Record<string, string> = {};
     let scenarioIdMap: Record<string, string> = {};
     const savedIds: string[] = [];
@@ -1108,7 +1122,7 @@ export default function Home() {
         });
         const payload = {
           system: sys,
-          tools: updatedTools,
+          tools: toolsToSend,
           checkedScenarioIds: sys.checkedScenarioIds,
           expectedUpdatedAt: sys.updatedAt,
           taskId: activeTaskId,
@@ -1178,6 +1192,7 @@ export default function Home() {
           return;
         }
         savedIds.push(newSysId);
+        toolsToSend = []; // 工具配置提交一次即可，避免重复 upsert
       }
 
       if (Object.keys(toolIdMap).length || Object.keys(scenarioIdMap).length) {
@@ -1208,6 +1223,7 @@ export default function Home() {
         });
         return next;
       });
+      if (dirtyTools) setDirtyTools(false);
       setActiveSystemId((prev) => systemIdMap[prev] || prev);
 
       setSaveHint(targetIds.length === systems.length ? "全部系统已保存到数据库" : "当前系统已保存");
@@ -1314,13 +1330,30 @@ export default function Home() {
               {syncing || loadingRemote ? "同步中..." : "⇅ 同步数据"}
             </button>
             <button
-              onClick={() => saveSystemsBatch(Array.from(dirtySystems.size ? dirtySystems : new Set(systems.map((s) => s.id))))}
+              onClick={() => {
+                const targetSet = new Set([...dirtyInfoSystems, ...dirtyCoverageSystems]);
+                const targetIds =
+                  targetSet.size > 0
+                    ? Array.from(targetSet)
+                    : dirtyTools && systems.length
+                    ? [systems[0].id]
+                    : [];
+                saveSystemsBatch(targetIds);
+              }}
               disabled={saving}
               className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition ${
                 saving ? "bg-blue-300 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
               }`}
             >
-              {saving ? "保存中..." : `☁️ 提交改动${dirtySystems.size ? `(${dirtySystems.size})` : ""}`}
+              {saving
+                ? "保存中..."
+                : `☁️ 提交改动${
+                    dirtyInfoSystems.size + dirtyCoverageSystems.size > 0
+                      ? `(${dirtyInfoSystems.size + dirtyCoverageSystems.size})`
+                      : dirtyTools
+                      ? "(工具/指标)"
+                      : ""
+                  }`}
             </button>
             <button
               onClick={handleExport}
@@ -1339,7 +1372,9 @@ export default function Home() {
           </div>
         </header>
 
-      {(saving || creatingTask) && <div className="fixed inset-0 z-40 bg-black/10 backdrop-blur-sm" aria-hidden />}
+      {(saving || syncing || creatingTask) && (
+        <div className="fixed inset-0 z-40 bg-black/10 backdrop-blur-sm" aria-hidden />
+      )}
 
       {creatingTask && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
@@ -1778,11 +1813,11 @@ export default function Home() {
                     <button onClick={() => setActiveSystemId(sys.id)} className="block w-full text-left">
                       <div className="flex items-center gap-2">
                         <div className="font-bold text-slate-800">{sys.name}</div>
-                        {dirtySystems.has(sys.id) && (
+                        {dirtyInfoSystems.has(sys.id) || dirtyCoverageSystems.has(sys.id) ? (
                           <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
                             已改动
                           </span>
-                        )}
+                        ) : null}
                       </div>
                       <div className="mt-1 flex justify-between text-xs text-slate-500">
                         <span>{sys.tier}类系统</span>

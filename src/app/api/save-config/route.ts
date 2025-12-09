@@ -157,8 +157,17 @@ export async function POST(req: Request) {
     const safeScenarioIds = (checkedScenarioIds || [])
       .map((sid) => scenarioIdMap[sid] || sid)
       .filter((sid) => typeof sid === "string" && uuidLike(sid));
+    let finalScenarioIds: string[] = safeScenarioIds;
     if (safeScenarioIds.length) {
-      const rows = safeScenarioIds.map((sid) => ({
+      const { data: validScen } = await supabaseService
+        .from("tool_scenarios")
+        .select("id")
+        .in("id", safeScenarioIds);
+      const validSet = new Set((validScen || []).map((v: any) => v.id));
+      finalScenarioIds = safeScenarioIds.filter((sid) => validSet.has(sid));
+    }
+    if (finalScenarioIds.length) {
+      const rows = finalScenarioIds.map((sid) => ({
         system_id: targetSystemId,
         scenario_id: sid,
         checked: true,
