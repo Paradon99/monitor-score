@@ -1060,6 +1060,7 @@ export default function Home() {
     let toolIdMap: Record<string, string> = {};
     let scenarioIdMap: Record<string, string> = {};
     const savedIds: string[] = [];
+    const systemIdMap: Record<string, string> = {};
 
     try {
       for (let i = 0; i < targetIds.length; i++) {
@@ -1098,6 +1099,9 @@ export default function Home() {
         toolIdMap = { ...toolIdMap, ...(data.toolIdMap || {}) };
         scenarioIdMap = { ...scenarioIdMap, ...(data.scenarioIdMap || {}) };
         const newSysId = data.systemId || sys.id;
+        if (newSysId !== sys.id) {
+          systemIdMap[sys.id] = newSysId;
+        }
         const mappedSys = {
           ...sys,
           id: newSysId,
@@ -1150,12 +1154,19 @@ export default function Home() {
       setDirtySystems((prev) => {
         const next = new Set(prev);
         savedIds.forEach((id) => next.delete(id));
+        // 将旧的临时 systemId 替换为服务端返回的新 UUID，避免 UI 状态回滚
+        Object.entries(systemIdMap).forEach(([oldId, newId]) => {
+          if (next.has(oldId)) {
+            next.delete(oldId);
+            next.add(newId);
+          }
+        });
         return next;
       });
+      setActiveSystemId((prev) => systemIdMap[prev] || prev);
 
       setSaveHint(targetIds.length === systems.length ? "全部系统已保存到数据库" : "当前系统已保存");
       setTimeout(() => setSaveHint(""), 1200);
-      await fetchRemote();
     } catch (e) {
       console.warn("save-config/score error", e);
       setConflictMsg("保存失败，请检查网络或权限");
