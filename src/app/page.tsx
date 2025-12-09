@@ -1066,7 +1066,12 @@ const [progressText, setProgressText] = useState<string>("");
       setActiveSystemId(nextActive);
       return filtered;
     });
-    setDirtySystems((prev) => {
+    setDirtyInfoSystems((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+    setDirtyCoverageSystems((prev) => {
       const next = new Set(prev);
       next.delete(id);
       return next;
@@ -1212,10 +1217,20 @@ const [progressText, setProgressText] = useState<string>("");
 
       setTools(updatedTools);
       setSystems(updatedSystems);
-      setDirtySystems((prev) => {
+      setDirtyInfoSystems((prev) => {
         const next = new Set(prev);
         savedIds.forEach((id) => next.delete(id));
-        // 将旧的临时 systemId 替换为服务端返回的新 UUID，避免 UI 状态回滚
+        Object.entries(systemIdMap).forEach(([oldId, newId]) => {
+          if (next.has(oldId)) {
+            next.delete(oldId);
+            next.add(newId);
+          }
+        });
+        return next;
+      });
+      setDirtyCoverageSystems((prev) => {
+        const next = new Set(prev);
+        savedIds.forEach((id) => next.delete(id));
         Object.entries(systemIdMap).forEach(([oldId, newId]) => {
           if (next.has(oldId)) {
             next.delete(oldId);
