@@ -10,7 +10,7 @@ import configFromDownload from "../../data/seed/monitor_config_from_download.jso
 import { supabase } from "../../lib/supabaseClient";
 
 type MonitorLevel = "red" | "orange" | "yellow" | "gray";
-type MonitorCategory = "host" | "process" | "network" | "db" | "trans" | "link" | "data" | "client";
+type MonitorCategory = "host" | "process" | "network" | "db" | "trans" | "link" | "data" | "client" | "inspect";
 type Task = { id: string; name: string; description?: string };
 
 interface Scenario {
@@ -84,12 +84,13 @@ const CATEGORY_LABELS: Record<MonitorCategory, string> = {
   network: "网络负载",
   db: "数据库",
   trans: "交易监控",
-  link: "全链路",
+  link: "链路追踪",
   data: "数据核对",
   client: "客户端",
+  inspect: "系统巡检",
 };
 
-const MANDATORY_CAPS: MonitorCategory[] = ["host", "process", "network", "db", "trans"];
+const MANDATORY_CAPS: MonitorCategory[] = ["host", "process", "db", "trans", "data", "inspect"];
 
 const normalizeCaps = (caps: string[]): MonitorCategory[] => {
   const map: Record<string, MonitorCategory> = {
@@ -110,6 +111,8 @@ const normalizeCaps = (caps: string[]): MonitorCategory[] => {
     trans: "trans",
     链路: "link",
     "链路监控": "link",
+    "全链路": "link",
+    "链路追踪": "link",
     link: "link",
     数据: "data",
     "数据监控": "data",
@@ -117,6 +120,9 @@ const normalizeCaps = (caps: string[]): MonitorCategory[] => {
     客户端: "client",
     "客户端监控": "client",
     client: "client",
+    巡检: "inspect",
+    "系统巡检": "inspect",
+    inspect: "inspect",
   };
   const cleaned = caps
     .map((c) => (c || "").toString().toLowerCase().replace(/\s+/g, ""))
