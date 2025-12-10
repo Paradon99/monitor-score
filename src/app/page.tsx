@@ -715,7 +715,7 @@ const [dirtyCoverageSystems, setDirtyCoverageSystems] = useState<Set<string>>(ne
     } catch (e) {
       console.warn("本地缓存读取失败", e);
     }
-  }, [activeTaskId]);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem(SYSTEM_STORAGE_KEY, JSON.stringify(systems));
