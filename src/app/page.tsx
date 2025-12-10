@@ -763,7 +763,8 @@ const [dirtyTools, setDirtyTools] = useState<boolean>(false);
       }
       if (tasksData && tasksData.length) {
         setTasks(tasksData);
-        if (!tasksData.find((t) => t.id === activeTaskId)) {
+        // 仅在未选定任务时设为最新一条，不强行覆盖用户切换
+        if (!activeTaskId) {
           setActiveTaskId(tasksData[0].id);
         }
       }
