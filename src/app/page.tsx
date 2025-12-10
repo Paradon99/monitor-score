@@ -765,11 +765,9 @@ const [dirtyTools, setDirtyTools] = useState<boolean>(false);
       if (tasksData && tasksData.length) {
         setTasks(tasksData);
         // 如当前选中的任务已不存在，则切换到最新一条
-        if (activeTaskId && !tasksData.find((t) => t.id === activeTaskId)) {
+        if (taskId && !tasksData.find((t) => t.id === taskId)) {
           setActiveTaskId(tasksData[0].id);
-        }
-        // 如还未选定任务，默认最新一条
-        if (!activeTaskId) {
+        } else if (!taskId) {
           setActiveTaskId(tasksData[0].id);
         }
       }
