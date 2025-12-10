@@ -2135,7 +2135,6 @@ const [dirtyCoverageSystems, setDirtyCoverageSystems] = useState<Set<string>>(ne
                                       <th className="px-3 py-2 text-left">指标</th>
                                       <th className="px-3 py-2 text-left">阈值</th>
                                       <th className="px-3 py-2 text-center">级别</th>
-                                      <th className="px-3 py-2 text-center">工具</th>
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -2175,7 +2174,6 @@ const [dirtyCoverageSystems, setDirtyCoverageSystems] = useState<Set<string>>(ne
                                           }`}
                                         />
                                       </td>
-                                      <td className="px-3 py-2 text-center text-slate-600">{tool.name}</td>
                                     </tr>
                                   ))}
                                 </tbody>
