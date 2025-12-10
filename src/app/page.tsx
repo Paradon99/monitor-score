@@ -558,35 +558,19 @@ const calculateScore = (data: SystemData, tools: MonitorTool[]): ScoreDetail => 
   detail.part2 = Math.max(0, accScore + discScore);
 
   let score3 = 0;
-  score3 +=
-    (opsLeadRule as any)?.rules?.find((r: any) => r.when?.includes("opsLeadConfigured == true"))?.score ??
-    (data.opsLeadConfigured === "full" ? 5 : 0);
+  // 1.3.1 科管运维负责人：勾选得 5 分，否则 0
+  score3 += data.opsLeadConfigured === "full" ? 5 : 0;
 
+  // 1.3.2 数据级监控告警：未勾选视为 0 分；勾选时 5 分起，按缺项扣分
   if (data.dataMonitorConfigured === "full") {
-    score3 +=
-      (dataAlertRule as any)?.rules?.find((r: any) => r.when?.includes("dataMonitorEnabled == true"))?.deductPerItem
-        ? Math.max(
-            0,
-            5 -
-              Math.min(
-                (dataAlertRule as any)?.rules?.find((r: any) => r.when?.includes("deductPerItem"))?.capDeduct ?? 5,
-                ((dataAlertRule as any)?.rules?.find((r: any) => r.when?.includes("deductPerItem"))?.deductPerItem ??
-                  1) * data.missingMonitorItems
-              )
-          )
-        : 5 - data.missingMonitorItems;
-  } else if (data.dataMonitorConfigured === "missing") {
-    score3 += Math.max(
-      0,
-      5 -
-        Math.min(
-          (dataAlertRule as any)?.rules?.find((r: any) => r.when?.includes("deductPerItem"))?.capDeduct ?? 5,
-          data.missingMonitorItems
-        )
-    );
-  } else if (data.dataMonitorConfigured === "na") {
-    score3 += (dataAlertRule as any)?.rules?.find((r: any) => r.when?.includes("dataMonitorEnabled == false"))?.score ?? 0;
+    const per = (dataAlertRule as any)?.rules?.find((r: any) => r.when?.includes("deductPerItem"))?.deductPerItem ?? 1;
+    const cap = (dataAlertRule as any)?.rules?.find((r: any) => r.when?.includes("deductPerItem"))?.capDeduct ?? 5;
+    const deduct = Math.min(cap, per * (data.missingMonitorItems || 0));
+    score3 += Math.max(0, 5 - deduct);
+  } else {
+    score3 += 0;
   }
+
   detail.part3 = Math.max(0, score3);
 
   const responseDeductPer =
