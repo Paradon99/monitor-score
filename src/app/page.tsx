@@ -610,7 +610,7 @@ const calculateScore = (data: SystemData, tools: MonitorTool[]): ScoreDetail => 
 
 export default function Home() {
   const initialSystems: SystemData[] = INITIAL_SYSTEMS;
-    const [systems, setSystems] = useState<SystemData[]>(initialSystems);
+  const [systems, setSystems] = useState<SystemData[]>(initialSystems);
   const [activeSystemId, setActiveSystemId] = useState<string>(initialSystems[0]?.id || "");
   const [tools, setTools] = useState<MonitorTool[]>(mergeStandardIndicators(DEFAULT_TOOLS));
   const [tasks, setTasks] = useState<Task[]>([{ id: DEFAULT_TASK_ID, name: "默认任务" }]);
@@ -631,15 +631,16 @@ export default function Home() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [conflictMsg, setConflictMsg] = useState<string>("");
   const [saving, setSaving] = useState<boolean>(false);
-const [syncing, setSyncing] = useState<boolean>(false);
-const [hasLocalData, setHasLocalData] = useState<boolean>(false);
-const [creatingTask, setCreatingTask] = useState<boolean>(false);
-const [newTaskName, setNewTaskName] = useState<string>("");
-const [cloneFromTaskId, setCloneFromTaskId] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState<boolean>(false);
+  const [hasLocalData, setHasLocalData] = useState<boolean>(false);
+  const [creatingTask, setCreatingTask] = useState<boolean>(false);
+  const [newTaskName, setNewTaskName] = useState<string>("");
+  const [cloneFromTaskId, setCloneFromTaskId] = useState<string | null>(null);
 const [dirtyInfoSystems, setDirtyInfoSystems] = useState<Set<string>>(new Set());
 const [dirtyCoverageSystems, setDirtyCoverageSystems] = useState<Set<string>>(new Set());
 const [dirtyTools, setDirtyTools] = useState<boolean>(false);
-const [progressText, setProgressText] = useState<string>("");
+  const [progressText, setProgressText] = useState<string>("");
+  const [hydrated, setHydrated] = useState<boolean>(false);
   const renameTask = async (id: string) => {
     const task = tasks.find((t) => t.id === id);
     const nextName = window.prompt("输入新的任务名称", task?.name || "");
@@ -843,6 +844,10 @@ const [progressText, setProgressText] = useState<string>("");
     } finally {
       setLoadingRemote(false);
     }
+  }, []);
+
+  useEffect(() => {
+    setHydrated(true);
   }, []);
 
   const handleManualSync = async () => {
@@ -1329,6 +1334,10 @@ const [progressText, setProgressText] = useState<string>("");
     };
     reader.readAsText(file);
   };
+
+  if (!hydrated) {
+    return <div className="min-h-screen bg-slate-50 text-slate-500 p-6">页面加载中...</div>;
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800">
