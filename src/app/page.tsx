@@ -638,9 +638,10 @@ export default function Home() {
   const [cloneFromTaskId, setCloneFromTaskId] = useState<string | null>(null);
 const [dirtyInfoSystems, setDirtyInfoSystems] = useState<Set<string>>(new Set());
 const [dirtyCoverageSystems, setDirtyCoverageSystems] = useState<Set<string>>(new Set());
-const [dirtyTools, setDirtyTools] = useState<boolean>(false);
+  const [dirtyTools, setDirtyTools] = useState<boolean>(false);
   const [progressText, setProgressText] = useState<string>("");
   const [hydrated, setHydrated] = useState<boolean>(false);
+  const userSelectedTaskRef = useRef<boolean>(false);
   const renameTask = async (id: string) => {
     const task = tasks.find((t) => t.id === id);
     const nextName = window.prompt("输入新的任务名称", task?.name || "");
@@ -764,12 +765,6 @@ const [dirtyTools, setDirtyTools] = useState<boolean>(false);
       }
       if (tasksData && tasksData.length) {
         setTasks(tasksData);
-        // 如当前选中的任务已不存在，则切换到最新一条
-        if (taskId && !tasksData.find((t) => t.id === taskId)) {
-          setActiveTaskId(tasksData[0].id);
-        } else if (!taskId) {
-          setActiveTaskId(tasksData[0].id);
-        }
       }
 
       // 不再自动回退或扫描其他任务，仅同步当前任务数据
@@ -853,6 +848,15 @@ const [dirtyTools, setDirtyTools] = useState<boolean>(false);
   useEffect(() => {
     setHydrated(true);
   }, []);
+
+  // 如果还未选任务，默认选最新一条；仅在用户未手动切换的情况下兜底
+  useEffect(() => {
+    if (!activeTaskId && tasks.length) {
+      setActiveTaskId(tasks[0].id);
+    } else if (activeTaskId && tasks.length && !tasks.find((t) => t.id === activeTaskId) && !userSelectedTaskRef.current) {
+      setActiveTaskId(tasks[0].id);
+    }
+  }, [tasks, activeTaskId]);
 
   const handleManualSync = async (taskIdOverride?: string) => {
     // 清理本地缓存，避免旧数据闪现
@@ -1537,6 +1541,7 @@ const [dirtyTools, setDirtyTools] = useState<boolean>(false);
                 value={activeTaskId}
                 onChange={(e) => {
                   const tid = e.target.value;
+                  userSelectedTaskRef.current = true;
                   setActiveTaskId(tid);
                   handleManualSync(tid);
                 }}
