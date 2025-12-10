@@ -752,7 +752,10 @@ const [progressText, setProgressText] = useState<string>("");
         .eq("task_id", activeTaskId || DEFAULT_TASK_ID);
       const systemToolsRows = systemToolsData || [];
       const systemScenRows = systemScenData || [];
-      const { data: tasksData } = await supabase.from("tasks").select("id,name,description");
+      const { data: tasksData } = await supabase
+        .from("tasks")
+        .select("id,name,description,created_at")
+        .order("created_at", { ascending: false });
       if (toolsErr || sysErr || sysToolErr || sysScenErr || scoreErr) {
         console.warn("Supabase fetch failed", toolsErr || sysErr || sysToolErr || sysScenErr || scoreErr);
         return;
@@ -858,12 +861,6 @@ const [progressText, setProgressText] = useState<string>("");
   useEffect(() => {
     handleManualSync();
   }, []);
-
-  useEffect(() => {
-    if (!isUUID(activeTaskId)) {
-      setActiveTaskId(DEFAULT_TASK_ID);
-    }
-  }, [activeTaskId]);
 
   useEffect(() => {
     if (!activeToolId && tools.length) setActiveToolId(tools[0].id);
