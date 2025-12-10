@@ -728,10 +728,11 @@ const [dirtyTools, setDirtyTools] = useState<boolean>(false);
     localStorage.setItem(TASK_STORAGE_KEY, activeTaskId);
   }, [activeTaskId]);
 
-  const fetchRemote = useCallback(async () => {
+  const fetchRemote = useCallback(async (taskIdOverride?: string) => {
     if (!supabase) return;
     setLoadingRemote(true);
     try {
+      const taskId = taskIdOverride ?? activeTaskId ?? DEFAULT_TASK_ID;
       const { data: toolsData, error: toolsErr } = await supabase
         .from("tools")
         .select("id,name,default_caps,tool_scenarios(id,category,metric,threshold,level),updated_at")
@@ -742,15 +743,15 @@ const [dirtyTools, setDirtyTools] = useState<boolean>(false);
       const { data: systemToolsData, error: sysToolErr } = await supabase
         .from("system_tools")
         .select("system_id,tool_id,caps_selected,task_id")
-        .eq("task_id", activeTaskId || DEFAULT_TASK_ID);
+        .eq("task_id", taskId || DEFAULT_TASK_ID);
       const { data: systemScenData, error: sysScenErr } = await supabase
         .from("system_scenarios")
         .select("system_id,scenario_id,task_id")
-        .eq("task_id", activeTaskId || DEFAULT_TASK_ID);
+        .eq("task_id", taskId || DEFAULT_TASK_ID);
       const { data: scoreData, error: scoreErr } = await supabase
         .from("scores")
         .select("system_id,details")
-        .eq("task_id", activeTaskId || DEFAULT_TASK_ID);
+        .eq("task_id", taskId || DEFAULT_TASK_ID);
       const systemToolsRows = systemToolsData || [];
       const systemScenRows = systemScenData || [];
       const { data: tasksData } = await supabase
@@ -763,7 +764,11 @@ const [dirtyTools, setDirtyTools] = useState<boolean>(false);
       }
       if (tasksData && tasksData.length) {
         setTasks(tasksData);
-        // 仅在未选定任务时设为最新一条，不强行覆盖用户切换
+        // 如当前选中的任务已不存在，则切换到最新一条
+        if (activeTaskId && !tasksData.find((t) => t.id === activeTaskId)) {
+          setActiveTaskId(tasksData[0].id);
+        }
+        // 如还未选定任务，默认最新一条
         if (!activeTaskId) {
           setActiveTaskId(tasksData[0].id);
         }
@@ -851,12 +856,12 @@ const [dirtyTools, setDirtyTools] = useState<boolean>(false);
     setHydrated(true);
   }, []);
 
-  const handleManualSync = async () => {
+  const handleManualSync = async (taskIdOverride?: string) => {
     // 清理本地缓存，避免旧数据闪现
     localStorage.removeItem(SYSTEM_STORAGE_KEY);
     localStorage.removeItem(TOOL_STORAGE_KEY);
     setSyncing(true);
-    await fetchRemote();
+    await fetchRemote(taskIdOverride);
     setSyncing(false);
     setDirtyInfoSystems(new Set());
     setDirtyCoverageSystems(new Set());
@@ -1532,7 +1537,11 @@ const [dirtyTools, setDirtyTools] = useState<boolean>(false);
               <div className="text-sm font-bold text-slate-700">任务管理</div>
               <select
                 value={activeTaskId}
-                onChange={(e) => setActiveTaskId(e.target.value)}
+                onChange={(e) => {
+                  const tid = e.target.value;
+                  setActiveTaskId(tid);
+                  handleManualSync(tid);
+                }}
                 className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700"
               >
                 {tasks.map((t) => (
