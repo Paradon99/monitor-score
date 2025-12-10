@@ -517,16 +517,21 @@ const calculateScore = (data: SystemData, tools: MonitorTool[]): ScoreDetail => 
         if (relevant.length === 0) return; // 该能力无标准指标则不计入分母
         const checked = relevant.filter((s) => data.checkedScenarioIds.includes(s.id)).length;
         const pct = relevant.length === 0 ? 0 : checked / relevant.length;
-        const dr = (standardRule as any)?.deductionRules || [];
-        const deduct =
-          dr.find((r: any) => pct >= 1 && r.when?.includes(">= 1"))?.deduct ??
-          dr.find((r: any) => pct >= 0.7 && r.when?.includes(">= 0.7"))?.deduct ??
-          dr.find((r: any) => pct >= 0.5 && r.when?.includes(">= 0.5"))?.deduct ??
-          dr.find((r: any) => pct >= 0.3 && r.when?.includes(">= 0.3"))?.deduct ??
-          dr.find((r: any) => r.when?.includes("< 0.3"))?.deduct ??
-          10;
-        const base = (standardRule as any)?.basePoints ?? 10;
-        capScores.push(Math.max(0, base - deduct));
+        // 若该能力有指标但一个未勾选，则直接记 0 分
+        if (checked === 0) {
+          capScores.push(0);
+        } else {
+          const dr = (standardRule as any)?.deductionRules || [];
+          const deduct =
+            dr.find((r: any) => pct >= 1 && r.when?.includes(">= 1"))?.deduct ??
+            dr.find((r: any) => pct >= 0.7 && r.when?.includes(">= 0.7"))?.deduct ??
+            dr.find((r: any) => pct >= 0.5 && r.when?.includes(">= 0.5"))?.deduct ??
+            dr.find((r: any) => pct >= 0.3 && r.when?.includes(">= 0.3"))?.deduct ??
+            dr.find((r: any) => r.when?.includes("< 0.3"))?.deduct ??
+            10;
+          const base = (standardRule as any)?.basePoints ?? 10;
+          capScores.push(Math.max(0, base - deduct));
+        }
       });
     });
     if (capScores.length > 0) {
