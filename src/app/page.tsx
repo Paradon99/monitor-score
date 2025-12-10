@@ -1389,7 +1389,7 @@ const [dirtyTools, setDirtyTools] = useState<boolean>(false);
               ))}
             </div>
             <button
-              onClick={handleManualSync}
+              onClick={() => handleManualSync()}
               disabled={syncing || saving}
               className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition ${
                 syncing ? "bg-amber-300 cursor-wait" : "bg-amber-500 hover:bg-amber-600"
