@@ -1968,6 +1968,20 @@ const [dirtyCoverageSystems, setDirtyCoverageSystems] = useState<Set<string>>(ne
                         );
                       })}
                     </div>
+                    {scores.missingCaps.length > 0 && (
+                      <div className="rounded border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+                        <div className="mb-1 font-semibold">
+                          缺失组件（扣 {scores.missingCaps.length * 10} 分）
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {scores.missingCaps.map((cap) => (
+                            <span key={cap} className="rounded border border-red-200 bg-white px-2 py-1 text-[11px]">
+                              {CATEGORY_LABELS[cap]}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                     <div className="space-y-3 rounded bg-slate-50 p-3 text-sm">
                       <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                         <div className="rounded-lg border border-slate-200 bg-white p-3">
