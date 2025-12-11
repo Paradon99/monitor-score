@@ -509,8 +509,9 @@ const calculateScore = (data: SystemData, tools: MonitorTool[]): ScoreDetail => 
   const capScores: number[] = [];
   const mandatoryScenarioMiss: MonitorCategory[] = [];
   if (selectedWithCaps.length > 0) {
-    const mandatorySelectState: Record<MonitorCategory, { anyScenario: boolean; anySelected: boolean }> = {};
-    MANDATORY_CAPS.forEach((c) => (mandatorySelectState[c] = { anyScenario: false, anySelected: false }));
+    const mandatorySelectState: Record<MonitorCategory, { anyScenario: boolean; anySelected: boolean }> = Object.fromEntries(
+      MANDATORY_CAPS.map((c) => [c, { anyScenario: false, anySelected: false }])
+    ) as Record<MonitorCategory, { anyScenario: boolean; anySelected: boolean }>;
 
     selectedWithCaps.forEach((tid) => {
       const tool = tools.find((t) => t.id === tid);
