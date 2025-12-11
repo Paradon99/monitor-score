@@ -497,7 +497,7 @@ const calculateScore = (data: SystemData, tools: MonitorTool[]): ScoreDetail => 
 
   const selfBuiltBonus = data.isSelfBuilt ? 5 : 0;
 
-  let score1 = 45;
+  let score1 = 40;
   score1 -= pkgDeduct;
   score1 -= missingDeduct;
   score1 -= serverDeduct;
@@ -507,7 +507,11 @@ const calculateScore = (data: SystemData, tools: MonitorTool[]): ScoreDetail => 
   // 1.2 标准场景覆盖：以“工具+能力”为单位，只有存在标准指标才参与计分
   let score1_2 = 0;
   const capScores: number[] = [];
+  const mandatoryScenarioMiss: MonitorCategory[] = [];
   if (selectedWithCaps.length > 0) {
+    const mandatorySelectState: Record<MonitorCategory, { anyScenario: boolean; anySelected: boolean }> = {};
+    MANDATORY_CAPS.forEach((c) => (mandatorySelectState[c] = { anyScenario: false, anySelected: false }));
+
     selectedWithCaps.forEach((tid) => {
       const tool = tools.find((t) => t.id === tid);
       if (!tool) return;
@@ -515,6 +519,10 @@ const calculateScore = (data: SystemData, tools: MonitorTool[]): ScoreDetail => 
       enabledCaps.forEach((cap) => {
         const relevant = tool.scenarios.filter((s) => s.category === cap);
         if (relevant.length === 0) return; // 该能力无标准指标则不计入分母
+        if (mandatorySelectState[cap]) {
+          mandatorySelectState[cap].anyScenario = true;
+          mandatorySelectState[cap].anySelected = mandatorySelectState[cap].anySelected || relevant.some((s) => data.checkedScenarioIds.includes(s.id));
+        }
         const checked = relevant.filter((s) => data.checkedScenarioIds.includes(s.id)).length;
         const pct = relevant.length === 0 ? 0 : checked / relevant.length;
         // 若该能力有指标但一个未勾选，则直接记 0 分
@@ -534,6 +542,12 @@ const calculateScore = (data: SystemData, tools: MonitorTool[]): ScoreDetail => 
         }
       });
     });
+    MANDATORY_CAPS.forEach((cap) => {
+      const state = mandatorySelectState[cap];
+      if (state && state.anyScenario && !state.anySelected) {
+        mandatoryScenarioMiss.push(cap);
+      }
+    });
     if (capScores.length > 0) {
       score1_2 = capScores.reduce((a, b) => a + b, 0) / capScores.length;
     }
@@ -544,7 +558,9 @@ const calculateScore = (data: SystemData, tools: MonitorTool[]): ScoreDetail => 
   const docCap = docBonusRule?.cap ?? 5;
   const score1_3 = Math.min(docCap, Math.max(0, data.documentedItems * docBonusPer));
 
-  detail.part1 = Math.max(0, Math.min(60, Math.round((score1 + score1_2 + score1_3) * 10) / 10));
+  const mandatoryScenarioDeduct = mandatoryScenarioMiss.length * 10;
+
+  detail.part1 = Math.max(0, Math.min(60, Math.round((score1 + score1_2 + score1_3 - mandatoryScenarioDeduct) * 10) / 10));
 
   const accRate = deriveAccuracyRate(data);
   detail.accuracyRatePct = accRate * 100;
