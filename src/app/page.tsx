@@ -143,13 +143,16 @@ const mergeStandardIndicators = (tools: MonitorTool[]): MonitorTool[] => {
     const defaultCaps = normalizeCaps(t.defaultCapabilities || []);
     const scen =
       key && std[key]
-        ? (std[key] || []).map((s, idx) => ({
-            id: s.id || `${t.id}_${idx}`,
-            category: (s.category as MonitorCategory) || "host",
-            metric: s.metric,
-            level: (s.level as MonitorLevel) || "gray",
-            threshold: s.threshold || "",
-          }))
+        ? (std[key] || []).map((s, idx) => {
+            const cat = normalizeCaps([s.category])[0] || "host";
+            return {
+              id: s.id || `${t.id}_${idx}`,
+              category: cat,
+              metric: s.metric,
+              level: (s.level as MonitorLevel) || "gray",
+              threshold: s.threshold || "",
+            };
+          })
         : t.scenarios || [];
     return { ...t, defaultCapabilities: defaultCaps, scenarios: scen };
   });
@@ -790,13 +793,16 @@ const [dirtyCoverageSystems, setDirtyCoverageSystems] = useState<Set<string>>(ne
           id: t.id,
           name: t.name,
           defaultCapabilities: normalizeCaps(t.default_caps || []),
-          scenarios: (t.tool_scenarios || []).map((s: any) => ({
-            id: s.id,
-            category: s.category as MonitorCategory,
-            metric: s.metric,
-            threshold: s.threshold,
-            level: (s.level as MonitorLevel) || "gray",
-          })),
+          scenarios: (t.tool_scenarios || []).map((s: any) => {
+            const cat = normalizeCaps([s.category])[0] || "host";
+            return {
+              id: s.id,
+              category: cat,
+              metric: s.metric,
+              threshold: s.threshold,
+              level: (s.level as MonitorLevel) || "gray",
+            };
+          }),
         }));
         setTools(mappedTools.length ? mappedTools : mergeStandardIndicators(DEFAULT_TOOLS));
       }
@@ -979,11 +985,10 @@ const [dirtyCoverageSystems, setDirtyCoverageSystems] = useState<Set<string>>(ne
             toolCapabilities: { ...s.toolCapabilities, [toolId]: [] },
           };
         }
-        const tool = tools.find((t) => t.id === toolId);
         return {
           ...s,
           selectedToolIds: [...current, toolId],
-          toolCapabilities: { ...s.toolCapabilities, [toolId]: tool?.defaultCapabilities || [] },
+          toolCapabilities: { ...s.toolCapabilities, [toolId]: [] }, // 默认不自动带能力，需手动勾选
         };
       })
     );
@@ -1802,79 +1807,214 @@ const [dirtyCoverageSystems, setDirtyCoverageSystems] = useState<Set<string>>(ne
 
         {view === "dashboard" && (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-              {systems.map((sys) => {
-                const s = calculateScore(sys, tools);
-                return (
-                  <Card
-                    key={sys.id}
-                    className="cursor-pointer p-6 transition-all hover:shadow-md"
-                    onClick={() => {
-                      setActiveSystemId(sys.id);
-                      setView("scoring");
-                    }}
-                  >
-                    <div className="mb-4 flex items-start justify-between">
+            {(() => {
+              const allScores = systems.map((s) => calculateScore(s, tools));
+              const avg = (arr: number[]) => (arr.length ? Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) * 10) / 10 : 0);
+              const avgTotal = avg(allScores.map((s) => s.total));
+              const avgP1 = avg(allScores.map((s) => s.part1));
+              const avgP2 = avg(allScores.map((s) => s.part2));
+              const avgP3 = avg(allScores.map((s) => s.part3));
+              const avgP4 = avg(allScores.map((s) => s.part4));
+              const capStats = MANDATORY_CAPS.map((cap) => {
+                const coveredSystems = systems.filter((sys) =>
+                  (sys.selectedToolIds || []).some((tid) => (sys.toolCapabilities?.[tid] || []).includes(cap))
+                );
+                const coverage = systems.length ? Math.round((coveredSystems.length / systems.length) * 1000) / 10 : 0;
+                const missingNames = systems
+                  .filter((sys) => !(sys.selectedToolIds || []).some((tid) => (sys.toolCapabilities?.[tid] || []).includes(cap)))
+                  .map((s) => s.name)
+                  .slice(0, 3);
+                return { cap, coverage, missingNames };
+              });
+
+              return (
+                <>
+                  <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+                    <Card className="p-5">
+                      <div className="text-sm text-slate-500">总体评分</div>
+                      <div className="mt-2 flex items-baseline gap-2">
+                        <span className="text-3xl font-black text-blue-600">{avgTotal}</span>
+                        <span className="text-xs text-slate-400">/100</span>
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600">
+                        <div className="flex items-center justify-between rounded bg-blue-50 px-2 py-1">
+                          <span>配置</span>
+                          <span className="font-bold text-blue-700">{avgP1}</span>
+                        </div>
+                        <div className="flex items-center justify-between rounded bg-emerald-50 px-2 py-1">
+                          <span>检测</span>
+                          <span className="font-bold text-emerald-700">{avgP2}</span>
+                        </div>
+                        <div className="flex items-center justify-between rounded bg-amber-50 px-2 py-1">
+                          <span>告警</span>
+                          <span className="font-bold text-amber-700">{avgP3}</span>
+                        </div>
+                        <div className="flex items-center justify-between rounded bg-indigo-50 px-2 py-1">
+                          <span>团队</span>
+                          <span className="font-bold text-indigo-700">{avgP4}</span>
+                        </div>
+                      </div>
+                      {(() => {
+                        const maxes = [60, 20, 10, 10];
+                        const vals = [avgP1, avgP2, avgP3, avgP4];
+                        const size = 200;
+                        const center = size / 2;
+                        const radius = 70;
+                        const points = vals
+                          .map((v, i) => {
+                            const angle = (-Math.PI / 2) + (i * 2 * Math.PI) / vals.length;
+                            const r = (Math.max(0, v) / maxes[i]) * radius;
+                            const x = center + r * Math.cos(angle);
+                            const y = center + r * Math.sin(angle);
+                            return `${x},${y}`;
+                          })
+                          .join(" ");
+                        const grid = [0.25, 0.5, 0.75, 1].map((ratio) =>
+                          Array.from({ length: vals.length }, (_, i) => {
+                            const angle = (-Math.PI / 2) + (i * 2 * Math.PI) / vals.length;
+                            const r = ratio * radius;
+                            const x = center + r * Math.cos(angle);
+                            const y = center + r * Math.sin(angle);
+                            return `${x},${y}`;
+                          }).join(" ")
+                        );
+                        return (
+                          <svg viewBox={`0 0 ${size} ${size}`} className="mt-4 w-full">
+                            {grid.map((poly, idx) => (
+                              <polygon key={idx} points={poly} fill="none" stroke="#e2e8f0" strokeWidth={1} />
+                            ))}
+                            <polygon points={points} fill="rgba(59,130,246,0.15)" stroke="#3b82f6" strokeWidth={2} />
+                            {vals.map((v, i) => {
+                              const angle = (-Math.PI / 2) + (i * 2 * Math.PI) / vals.length;
+                              const x = center + (radius + 14) * Math.cos(angle);
+                              const y = center + (radius + 14) * Math.sin(angle);
+                              const labels = ["配置", "检测", "告警", "团队"];
+                              return (
+                                <text key={labels[i]} x={x} y={y} textAnchor="middle" dominantBaseline="middle" className="text-[10px] fill-slate-500">
+                                  {labels[i]}
+                                </text>
+                              );
+                            })}
+                          </svg>
+                        );
+                      })()}
+                    </Card>
+                    <Card className="p-5 lg:col-span-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-sm font-semibold text-slate-700">必选能力覆盖</div>
+                          <div className="text-xs text-slate-500">按能力聚合，查看短板</div>
+                        </div>
+                        <div className="text-xs text-slate-400">共 {systems.length} 个系统</div>
+                      </div>
+                      <div className="mt-3 space-y-2">
+                        {capStats.map((item) => (
+                          <div key={item.cap} className="rounded border border-slate-100 bg-slate-50 px-3 py-2">
+                            <div className="flex items-center justify-between text-sm">
+                              <div className="font-medium text-slate-700">{CATEGORY_LABELS[item.cap]}</div>
+                              <div className="text-xs text-slate-500">{item.coverage}% 覆盖</div>
+                            </div>
+                            <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-white">
+                              <div
+                                className="h-full rounded-full bg-blue-500 transition-all"
+                                style={{ width: `${item.coverage}%` }}
+                              />
+                            </div>
+                            {item.missingNames.length > 0 && (
+                              <div className="mt-1 text-xs text-amber-600">
+                                缺失：{item.missingNames.join("、")}{systems.length - item.missingNames.length > 3 ? " 等" : ""}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </Card>
+                  </div>
+
+                  <Card className="p-5">
+                    <div className="flex items-center justify-between">
                       <div>
-                        <div className="text-lg font-bold">{sys.name}</div>
-                        <div className="mt-1 text-xs text-slate-500">等级 {sys.tier} 类</div>
+                        <h3 className="text-lg font-bold text-slate-800">系统得分概览</h3>
+                        <p className="text-sm text-slate-500">点击可跳转评分视图，查看详情并修改</p>
                       </div>
-                      <div className="text-2xl font-black text-blue-600">{s.total}</div>
+                      <button
+                        onClick={addNewSystem}
+                        className="rounded-lg border border-dashed border-slate-300 px-3 py-2 text-sm text-slate-500 hover:border-blue-500 hover:text-blue-600"
+                      >
+                        + 新增系统
+                      </button>
                     </div>
-                    <div className="space-y-1 text-sm text-slate-500">
-                      <div className="flex justify-between">
-                        <span>配置</span>
-                        <span>{s.part1}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>检测</span>
-                        <span>{s.part2}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>告警</span>
-                        <span>{s.part3}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>团队</span>
-                        <span>{s.part4}</span>
-                      </div>
+                    <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      {systems.map((sys) => {
+                        const s = calculateScore(sys, tools);
+                        return (
+                          <div
+                            key={sys.id}
+                            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md cursor-pointer"
+                            onClick={() => {
+                              setActiveSystemId(sys.id);
+                              setView("scoring");
+                            }}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <div className="text-base font-bold text-slate-800">{sys.name}</div>
+                                <div className="text-xs text-slate-500 mt-1">等级 {sys.tier} 类</div>
+                              </div>
+                              <div className="text-2xl font-black text-blue-600">{s.total}</div>
+                            </div>
+                            <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600">
+                              <div className="flex items-center justify-between rounded bg-blue-50 px-2 py-1">
+                                <span>配置</span>
+                                <span className="font-bold text-blue-700">{s.part1}</span>
+                              </div>
+                              <div className="flex items-center justify-between rounded bg-emerald-50 px-2 py-1">
+                                <span>检测</span>
+                                <span className="font-bold text-emerald-700">{s.part2}</span>
+                              </div>
+                              <div className="flex items-center justify-between rounded bg-amber-50 px-2 py-1">
+                                <span>告警</span>
+                                <span className="font-bold text-amber-700">{s.part3}</span>
+                              </div>
+                              <div className="flex items-center justify-between rounded bg-indigo-50 px-2 py-1">
+                                <span>团队</span>
+                                <span className="font-bold text-indigo-700">{s.part4}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </Card>
-                );
-              })}
-              <button
-                onClick={addNewSystem}
-                className="flex min-h-[160px] items-center justify-center rounded-xl border-2 border-dashed border-slate-300 p-6 text-slate-400 transition hover:border-blue-500 hover:text-blue-500"
-              >
-                + 新增系统
-              </button>
-            </div>
 
-            <Card className="p-6">
-              <h3 className="text-lg font-bold text-slate-800">短板列表</h3>
-              <p className="text-sm text-slate-500">按缺失能力数量排序，快速定位薄弱环节</p>
-              <div className="mt-4 space-y-2 text-sm">
-                {systems
-                  .map((sys) => {
-                    const s = calculateScore(sys, tools);
-                    return { sys, missing: s.missingCaps.length, caps: s.missingCaps };
-                  })
-                  .filter((x) => x.missing > 0)
-                  .sort((a, b) => b.missing - a.missing)
-                  .map((item) => (
-                    <div key={item.sys.id} className="flex items-center justify-between rounded border border-slate-200 bg-slate-50 px-3 py-2">
-                      <div>
-                        <div className="font-semibold text-slate-800">{item.sys.name}</div>
-                        <div className="text-xs text-slate-500">缺失：{item.caps.map((c) => CATEGORY_LABELS[c]).join("、")}</div>
-                      </div>
-                      <span className="rounded bg-red-50 px-2 py-1 text-xs font-bold text-red-600">-{item.missing * 10}</span>
+                  <Card className="p-5">
+                    <h3 className="text-lg font-bold text-slate-800">短板列表</h3>
+                    <p className="text-sm text-slate-500">按缺失能力数量排序，快速定位薄弱系统</p>
+                    <div className="mt-4 space-y-2 text-sm">
+                      {systems
+                        .map((sys) => {
+                          const s = calculateScore(sys, tools);
+                          return { sys, missing: s.missingCaps.length, caps: s.missingCaps };
+                        })
+                        .filter((x) => x.missing > 0)
+                        .sort((a, b) => b.missing - a.missing)
+                        .map((item) => (
+                          <div key={item.sys.id} className="flex items-center justify-between rounded border border-slate-200 bg-slate-50 px-3 py-2">
+                            <div>
+                              <div className="font-semibold text-slate-800">{item.sys.name}</div>
+                              <div className="text-xs text-slate-500">缺失：{item.caps.map((c) => CATEGORY_LABELS[c]).join("、")}</div>
+                            </div>
+                            <span className="rounded bg-red-50 px-2 py-1 text-xs font-bold text-red-600">-{item.missing * 10}</span>
+                          </div>
+                        ))}
+                      {systems.every((sys) => calculateScore(sys, tools).missingCaps.length === 0) && (
+                        <div className="text-sm text-slate-500">当前无缺失能力。</div>
+                      )}
                     </div>
-                  ))}
-                {systems.every((sys) => calculateScore(sys, tools).missingCaps.length === 0) && (
-                  <div className="text-sm text-slate-500">当前无缺失能力。</div>
-                )}
-              </div>
-            </Card>
+                  </Card>
+                </>
+              );
+            })()}
           </div>
         )}
 
